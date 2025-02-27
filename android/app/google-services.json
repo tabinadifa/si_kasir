@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "624285376816",
+    "project_id": "ujilevel-xipplg2",
+    "storage_bucket": "ujilevel-xipplg2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:624285376816:android:f4a1345736218a821b68f5",
+        "android_client_info": {
+          "package_name": "com.ujilevel.sikasir"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "624285376816-5m77s9j31nmhq4ic2j0eihbrmvqo64kv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ujilevel.sikasir",
+            "certificate_hash": "abcdef1234567890abcdef123456789012345678"
+          }
+        },
+        {
+          "client_id": "624285376816-ndv4qk72njqmirj0po0k6a513o4dt10d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCG9R_dBYXqCYpcjGzbYTYuPW2_O5-skuc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "624285376816-ndv4qk72njqmirj0po0k6a513o4dt10d.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "624285376816-ie79d55donmk5tumgmkjilurml7eqgk6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.siKasir"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
