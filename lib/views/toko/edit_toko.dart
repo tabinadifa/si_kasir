@@ -26,18 +26,18 @@ class _EditTokoScreenState extends State<EditTokoScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
-  String? _email; // Email pengguna yang sedang login
-  String? _profileImageUrl; // URL gambar profil
-  String? _qrisImageUrl; // URL gambar QRIS
-  File? _profileImage; // File gambar profil baru
-  File? _qrisImage; // File gambar QRIS baru
-  bool _isLoading = false; // Untuk menampilkan loading indicator
-  String? _tokoId; // ID dokumen toko
+  String? _email; 
+  String? _profileImageUrl; 
+  String? _qrisImageUrl; 
+  File? _profileImage;
+  File? _qrisImage; 
+  bool _isLoading = false; 
+  String? _tokoId; 
 
   @override
   void initState() {
     super.initState();
-    _loadUserData(); // Memuat data toko saat layar pertama kali dibuka
+    _loadUserData(); 
   }
 
   @override
@@ -53,7 +53,7 @@ class _EditTokoScreenState extends State<EditTokoScreen> {
     User? user = _auth.currentUser;
     if (user != null) {
       setState(() {
-        _email = user.email; // Mengambil email pengguna yang sedang login
+        _email = user.email; 
         _emailController.text = _email ?? '';
       });
 
