@@ -442,29 +442,35 @@ Widget _buildHeader(BuildContext context) {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isSmallScreen = screenWidth < 360;
+@override
+Widget build(BuildContext context) {
+  final screenWidth = MediaQuery.of(context).size.width;
+  final screenHeight = MediaQuery.of(context).size.height;
+  final isSmallScreen = screenWidth < 360;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Beranda',
-          style: TextStyle(
-            color: const Color(0xFF133E87),
-            fontSize: isSmallScreen ? 18 : 20,
-            fontWeight: FontWeight.bold,
-          ),
+  return Scaffold(
+    appBar: AppBar(
+      title: Text(
+        'Beranda',
+        style: TextStyle(
+          color: const Color(0xFF133E87),
+          fontSize: isSmallScreen ? 18 : 20,
+          fontWeight: FontWeight.bold,
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
       ),
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: SingleChildScrollView(
+      centerTitle: true,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+    ),
+    backgroundColor: const Color(0xFFF5F7FA),
+    body: RefreshIndicator(
+      onRefresh: () async {
+        // Panggil fungsi refresh untuk memuat ulang data
+        await _loadProfileData();
+        await _loadSaldoData();
+      },
+      child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -527,6 +533,7 @@ Widget _buildHeader(BuildContext context) {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
