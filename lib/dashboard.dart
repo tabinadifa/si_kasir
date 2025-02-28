@@ -38,38 +38,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return format.format(amount);
   }
 
-  Future<void> _loadSaldoData() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() {
-          isLoadingProfile = false;
-        });
-        return;
-      }
-
-      final String emailUser = user.email!;
-      final transaksiRef = FirebaseFirestore.instance.collection('transaksi');
-      final querySnapshot = await transaksiRef.where('email', isEqualTo: emailUser).get();
-
-      double total = 0.0;
-
-      for (var doc in querySnapshot.docs) {
-        final data = doc.data();
-        final cashAmount = data['cashAmount'] ?? 0.0;
-        final initialPayment = data['initialPayment'] ?? 0.0;
-
-        // Jika cashAmount 0, gunakan initialPayment
-        total += cashAmount != 0.0 ? cashAmount : initialPayment;
-      }
-
+Future<void> _loadSaldoData() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       setState(() {
-        totalSaldo = total;
+        isLoadingProfile = false;
       });
-    } catch (e) {
-      print('Error loading saldo data: $e');
+      return;
     }
+
+    final String emailUser = user.email!;
+    final transaksiRef = FirebaseFirestore.instance.collection('transaksi');
+    final querySnapshot = await transaksiRef.where('email', isEqualTo: emailUser).get();
+
+    double total = 0.0;
+
+    for (var doc in querySnapshot.docs) {
+      final data = doc.data();
+      final paymentMethod = data['paymentMethod'] ?? 'tunai'; 
+      final cashAmount = data['cashAmount'] ?? 0.0;
+      final initialPayment = data['initialPayment'] ?? 0.0;
+      final totalAmount = data['totalAmount'] ?? 0.0;
+
+      if (paymentMethod == 'non-tunai') {
+        total += totalAmount;
+      } else if (paymentMethod == 'piutang') {
+        total += initialPayment;
+      } else {
+        total += cashAmount;
+      }
+    }
+
+    setState(() {
+      totalSaldo = total;
+    });
+  } catch (e) {
+    print('Error loading saldo data: $e');
   }
+}
   Future<void> _loadProfileData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;

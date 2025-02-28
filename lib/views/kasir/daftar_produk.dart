@@ -617,6 +617,23 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
                             ],
                           ),
                         )
+                        else if (product.stock == 0)
+                      Container(
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Stok Kosong',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      )
                       else
                         SizedBox(
                           height: 32,
