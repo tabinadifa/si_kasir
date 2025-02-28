@@ -50,35 +50,35 @@ class _EditTokoScreenState extends State<EditTokoScreen> {
 
   // Fungsi untuk memuat data toko dari Firestore
   Future<void> _loadUserData() async {
-    User? user = _auth.currentUser;
-    if (user != null) {
+  User? user = _auth.currentUser;
+  if (user != null) {
+    setState(() {
+      _email = user.email; 
+      _emailController.text = _email ?? '';
+    });
+
+    // Mengambil data toko dari Firestore berdasarkan email
+    QuerySnapshot tokoSnapshot = await _firestore
+        .collection('toko')
+        .where('email', isEqualTo: _email)
+        .limit(1)
+        .get();
+
+    if (tokoSnapshot.docs.isNotEmpty) {
+      // Jika data toko ditemukan, isi controller dengan data yang ada
+      DocumentSnapshot doc = tokoSnapshot.docs.first;
+      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+      
       setState(() {
-        _email = user.email; 
-        _emailController.text = _email ?? '';
+        _tokoId = doc.id;
+        _namaTokoController.text = data['nama_toko'] ?? '';
+        _phoneController.text = data['phone'] ?? '';
+        _profileImageUrl = data['profile_image'];
+        _qrisImageUrl = data['qris_image'];
       });
-
-      // Mengambil data toko dari Firestore berdasarkan email
-      QuerySnapshot tokoSnapshot = await _firestore
-          .collection('toko')
-          .where('email', isEqualTo: _email)
-          .limit(1)
-          .get();
-
-      if (tokoSnapshot.docs.isNotEmpty) {
-        // Jika data toko ditemukan, isi controller dengan data yang ada
-        DocumentSnapshot doc = tokoSnapshot.docs.first;
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        
-        setState(() {
-          _tokoId = doc.id;
-          _namaTokoController.text = data['nama_toko'] ?? '';
-          _phoneController.text = data['phone'] ?? '';
-          _profileImageUrl = data['profileImageUrl'];
-          _qrisImageUrl = data['qrisImageUrl'];
-        });
-      }
     }
   }
+}
 
   Future<void> _showImagePickerDialog({required bool isProfile}) async {
     await showDialog(
@@ -273,51 +273,52 @@ Future<void> _submitForm() async {
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: GestureDetector(
-  onTap: () => _showImagePickerDialog(isProfile: true),
-  child: Container(
-    width: 135,
-    height: 135,
-    decoration: BoxDecoration(
-      color: Colors.grey[200],
-      shape: BoxShape.circle,
-      image: (_profileImage != null)
-          ? DecorationImage(
-              image: FileImage(_profileImage!),
-              fit: BoxFit.cover,
-            )
-          : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
-              ? DecorationImage(
-                  image: NetworkImage(_profileImageUrl!),
-                  fit: BoxFit.cover,
-                )
-              : null,
-    ),
-    child: (_profileImage == null && (_profileImageUrl == null || _profileImageUrl!.isEmpty))
-        ? Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.camera_alt_outlined,
-                color: primaryBlue,
-                size: 50,
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Foto Profil',
-                style: TextStyle(
+  padding: const EdgeInsets.all(20),
+  child: GestureDetector(
+    onTap: () => _showImagePickerDialog(isProfile: true),
+    child: Container(
+      width: 135,
+      height: 135,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        shape: BoxShape.circle,
+        image: (_profileImage != null)
+            ? DecorationImage(
+                image: FileImage(_profileImage!),
+                fit: BoxFit.cover,
+              )
+            : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
+                ? DecorationImage(
+                    image: NetworkImage(_profileImageUrl!),
+                    fit: BoxFit.cover,
+                  )
+                : null,
+      ),
+      child: (_profileImage == null && (_profileImageUrl == null || _profileImageUrl!.isEmpty))
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.camera_alt_outlined,
                   color: primaryBlue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  size: 50,
                 ),
-              ),
-            ],
-          )
-        : null,
+                SizedBox(height: 8),
+                Text(
+                  'Foto Profil',
+                  style: TextStyle(
+                    color: primaryBlue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            )
+          : null,
+    ),
   ),
 ),
-                    ),
+
                     Container(
                       margin: EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
@@ -466,63 +467,25 @@ Widget buildQrisUploader() {
         ),
       ),
       child: (_qrisImage != null)
-          ? Stack(
-              children: [
-                ClipRRect(
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: Image.file(
+                _qrisImage!,
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            )
+          : (_qrisImageUrl != null && _qrisImageUrl!.isNotEmpty)
+              ? ClipRRect(
                   borderRadius: BorderRadius.circular(13),
-                  child: Image.file(
-                    _qrisImage!,
+                  child: Image.network(
+                    _qrisImageUrl!,
                     width: double.infinity,
                     height: double.infinity,
                     fit: BoxFit.cover,
                   ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.8),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(Icons.edit, color: primaryBlue),
-                      onPressed: () =>
-                          _showImagePickerDialog(isProfile: false),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : (_qrisImageUrl != null && _qrisImageUrl!.isNotEmpty)
-              ? Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(13),
-                      child: Image.network(
-                        _qrisImageUrl!,
-                        width: double.infinity,
-                        height: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.8),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: Icon(Icons.edit, color: primaryBlue),
-                          onPressed: () =>
-                              _showImagePickerDialog(isProfile: false),
-                        ),
-                      ),
-                    ),
-                    ],
-                  )
+                )
               : Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -555,6 +518,7 @@ Widget buildQrisUploader() {
     ),
   );
 }
+
 
   Widget buildButton(
       String text, Color color, IconData icon, VoidCallback onPressed) {

@@ -299,8 +299,14 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
 
   Widget _buildProductList() {
   if (categoryProducts.isEmpty) {
-    return Center(
-      child: CircularProgressIndicator(),
+      return Center(
+      child: Text(
+        'Tidak ada produk yang tersedia',
+        style: TextStyle(
+          fontSize: 16,
+          color: Colors.grey[600],
+        ),
+      ),
     );
   }
 
