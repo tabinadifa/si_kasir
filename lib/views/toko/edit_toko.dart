@@ -65,7 +65,6 @@ class _EditTokoScreenState extends State<EditTokoScreen> {
         .get();
 
     if (tokoSnapshot.docs.isNotEmpty) {
-      // Jika data toko ditemukan, isi controller dengan data yang ada
       DocumentSnapshot doc = tokoSnapshot.docs.first;
       Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
       
