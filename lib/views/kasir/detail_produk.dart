@@ -124,13 +124,18 @@ class DetailProdukScreen extends StatelessWidget {
                               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                             ),
                             SizedBox(height: 16),
+                          ],
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
                             Text(
                               'Barcode:',
                               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
                             SizedBox(height: 8),
                             Text(
-                              product.barcode,
+                              '${product.barcode}',
                               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                             ),
                             SizedBox(height: 16),
