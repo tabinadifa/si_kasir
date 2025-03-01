@@ -208,8 +208,8 @@ Future<void> _submitForm() async {
         'nama_toko': _namaTokoController.text,
         'phone': _phoneController.text,
         'email': _emailController.text,
-        'profileImageUrl': _profileImageUrl ?? '', // Use existing URL if no new image is uploaded
-        'qrisImageUrl': _qrisImageUrl ?? '', // Use existing URL if no new image is uploaded
+        'profile_image': _profileImageUrl ?? '', 
+        'qris_image': _qrisImageUrl ?? '', 
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -225,7 +225,6 @@ Future<void> _submitForm() async {
         ),
       );
 
-      // Navigate back to previous screen after successful save
       Navigator.pop(context);
     } catch (error) {
       // Close loading dialog
