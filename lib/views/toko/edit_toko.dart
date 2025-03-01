@@ -189,19 +189,13 @@ Future<void> _submitForm() async {
     );
 
     try {
-      // Upload new profile image to Cloudinary if it exists
       if (_profileImage != null) {
         _profileImageUrl = await _uploadToCloudinary(_profileImage!, 'profile_image');
       }
-      // If no new profile image is selected, keep the old URL
-      // _profileImageUrl remains unchanged
 
-      // Upload new QRIS image to Cloudinary if it exists
       if (_qrisImage != null) {
         _qrisImageUrl = await _uploadToCloudinary(_qrisImage!, 'qris_image');
       }
-      // If no new QRIS image is selected, keep the old URL
-      // _qrisImageUrl remains unchanged
 
       // Save data to Firestore
       Map<String, dynamic> tokoData = {
