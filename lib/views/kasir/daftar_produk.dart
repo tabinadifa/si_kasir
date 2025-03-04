@@ -173,133 +173,133 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+Widget build(BuildContext context) {
+  final screenWidth = MediaQuery.of(context).size.width;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF133E87),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+  return Scaffold(
+    backgroundColor: Colors.white,
+    appBar: AppBar(
+      backgroundColor: const Color(0xFF133E87),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
         ),
-        title: Container(
-          height: 48,
+        child: Center(
+          child: TextField(
+            controller: _searchController,
+            textAlignVertical: TextAlignVertical.center,
+            style: TextStyle(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Cari produk kamu di sini',
+              hintStyle: TextStyle(fontSize: 14, color: Colors.black),
+              prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 15),
+            ),
+          ),
+        ),
+      ),
+    ),
+    body: Column(
+      children: [
+        Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(25),
+            border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
           ),
-          child: Center(
-            child: TextField(
-              controller: _searchController,
-              textAlignVertical: TextAlignVertical.center,
-              style: TextStyle(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Cari produk kamu di sini',
-                hintStyle: TextStyle(fontSize: 14, color: Colors.black),
-                prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 15),
-              ),
-            ),
+          child: TabBar(
+            controller: _tabController,
+            tabs: [
+              Tab(text: 'Daftar Produk'),
+              Tab(text: 'Pindai Produk'),
+            ],
+            labelColor: const Color(0xFF133E87),
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: const Color(0xFF133E87),
           ),
         ),
-      ),
-      body: Column(
-        children: [
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildProductList(),
+              PindaiProdukScreen(),
+            ],
+          ),
+        ),
+        if (showTotal)
           Container(
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              tabs: [
-                Tab(text: 'Daftar Produk'),
-                Tab(text: 'Pindai Produk'),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.3),
+                  blurRadius: 5,
+                  offset: Offset(0, -2),
+                ),
               ],
-              labelColor: const Color(0xFF133E87),
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: const Color(0xFF133E87),
             ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildProductList(),
-                PindaiProdukScreen(),
+                Text(
+                  'Total: Rp${formatPrice(totalAmount)}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TransaksiScreen(
+                          selectedProducts: getSelectedProducts(),
+                          totalAmount: totalAmount,
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF133E87),
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(screenWidth * 0.3, 48),
+                  ),
+                  child: Text('Bayar'),
+                ),
               ],
             ),
           ),
-          if (showTotal)
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    blurRadius: 5,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total: Rp${formatPrice(totalAmount)}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TransaksiScreen(
-                            selectedProducts: getSelectedProducts(),
-                            totalAmount: totalAmount,
-                          ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF133E87),
-                      foregroundColor: Colors.white,
-                      minimumSize: Size(screenWidth * 0.3, 48),
-                    ),
-                    child: Text('Bayar'),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-      floatingActionButton: (_currentTabIndex == 0 && !showTotal)
-          ? FloatingActionButton(
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CreateProdukScreen(productId: ''),
-                  ),
-                );
-                _loadProducts(); // Reload products after creation
-              },
-              backgroundColor: const Color(0xFF133E87),
-              child: Icon(Icons.add, color: Colors.white),
-            )
-          : null,
-    );
-  }
+      ],
+    ),
+    floatingActionButton: (_currentTabIndex == 0 && !showTotal)
+        ? FloatingActionButton(
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CreateProdukScreen(productId: ''),
+                ),
+              );
+              _loadProducts(); // Reload products after creation
+            },
+            backgroundColor: const Color(0xFF133E87),
+            child: Icon(Icons.add, color: Colors.white),
+          )
+        : null,
+  );
+}
 
-  Widget _buildProductList() {
+Widget _buildProductList() {
   if (categoryProducts.isEmpty) {
-      return Center(
+    return Center(
       child: Text(
         'Tidak ada produk yang tersedia',
         style: TextStyle(
@@ -349,275 +349,275 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
   );
 }
 
-  Widget _buildCategoryTitle(String title) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 12),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-        ),
+Widget _buildCategoryTitle(String title) {
+  return Padding(
+    padding: EdgeInsets.only(bottom: 12),
+    child: Text(
+      title,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildProductGrid(List<Product> products) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        return _buildProductCard(products[index]);
-      },
-    );
-  }
+Widget _buildProductGrid(List<Product> products) {
+  return GridView.builder(
+    shrinkWrap: true,
+    physics: NeverScrollableScrollPhysics(),
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      childAspectRatio: 0.75,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+    ),
+    itemCount: products.length,
+    itemBuilder: (context, index) {
+      return _buildProductCard(products[index]);
+    },
+  );
+}
 
-  Widget _buildProductCard(Product product) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    String imageUrl = '${product.imageUrl}';
+Widget _buildProductCard(Product product) {
+  final screenWidth = MediaQuery.of(context).size.width;
+  String imageUrl = '${product.imageUrl}';
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetailProdukScreen(product: product),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[200]!),
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetailProdukScreen(product: product),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-                    child: Image.network(
-                      imageUrl,
-                      height: double.infinity,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[200],
-                          child: Icon(Icons.image_not_supported),
-                        );
-                      },
+      );
+    },
+    child: Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+                  child: Image.network(
+                    imageUrl,
+                    height: double.infinity,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[200],
+                        child: Icon(Icons.image_not_supported),
+                      );
+                    },
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: product.stock <= 10 ? const Color.fromARGB(255, 238, 198, 195) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Stok: ${product.stock}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: product.stock <= 10 ? Colors.red : Color(0xFF133E87),
+                      ),
                     ),
                   ),
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: product.stock <= 10 ? const Color.fromARGB(255, 238, 198, 195) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Stok: ${product.stock}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: product.stock <= 10 ? Colors.red : Color(0xFF133E87),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    height: 32,
+                    width: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
                         ),
-                      ),
+                      ],
                     ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      height: 32,
-                      width: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
+                    child: Center(
+                      child: PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'edit') {
+                            // Navigate to edit screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UpdateProdukScreen(
+                                  productId: product.id,
+                                ),
+                              ),
+                            ).then((_) => _loadProducts());
+                          } else if (value == 'delete') {
+                            // Show confirmation dialog
+                            bool? confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text('Konfirmasi Hapus'),
+                                content: Text('Yakin ingin menghapus produk ini?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: Text('Batal'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: Text('Hapus'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              await deleteProduct(product.id);
+                            }
+                          }
+                        },
+                        icon: Icon(
+                          Icons.more_vert,
+                          size: 18,
+                          color: Colors.black,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit, color: Colors.blue, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Edit',
+                                  style: TextStyle(fontSize: 14, color: Colors.black),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, color: Colors.red, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Hapus',
+                                  style: TextStyle(fontSize: 14, color: Colors.black),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                      child: Center(
-                        child: PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            if (value == 'edit') {
-                              // Navigate to edit screen
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => UpdateProdukScreen(
-                                    productId: product.id,
-                                  ),
-                                ),
-                              ).then((_) => _loadProducts());
-                            } else if (value == 'delete') {
-                              // Show confirmation dialog
-                              bool? confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text('Konfirmasi Hapus'),
-                                  content: Text('Yakin ingin menghapus produk ini?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: Text('Batal'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: Text('Hapus'),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (confirm == true) {
-                                await deleteProduct(product.id);
-                              }
-                            }
-                          },
-                          icon: Icon(
-                            Icons.more_vert,
-                            size: 18,
-                            color: Colors.black,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit, color: Colors.blue, size: 18),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Edit',
-                                    style: TextStyle(fontSize: 14, color: Colors.black),
-                                  ),
-                                ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      product.description,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Rp${formatPrice(product.price)}',
+                      style: TextStyle(
+                        color: const Color(0xFF133E87),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    if (product.quantity > 0)
+                      Container(
+                        height: 30,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildQuantityButton(
+                              Icons.remove,
+                              () {
+                                setState(() {
+                                  if (product.quantity > 0) {
+                                    product.quantity--;
+                                    updateTotal();
+                                  }
+                                });
+                              },
+                            ),
+                            Text(
+                              '${product.quantity}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, color: Colors.red, size: 18),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Hapus',
-                                    style: TextStyle(fontSize: 14, color: Colors.black),
-                                  ),
-                                ],
-                              ),
+                            _buildQuantityButton(
+                              Icons.add,
+                              () {
+                                setState(() {
+                                  if (product.quantity < product.stock) {
+                                    product.quantity++;
+                                    updateTotal();
+                                  }
+                                });
+                              },
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        product.description,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Rp${formatPrice(product.price)}',
-                        style: TextStyle(
-                          color: const Color(0xFF133E87),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      if (product.quantity > 0)
-                        Container(
-                          height: 30,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildQuantityButton(
-                                Icons.remove,
-                                () {
-                                  setState(() {
-                                    if (product.quantity > 0) {
-                                      product.quantity--;
-                                      updateTotal();
-                                    }
-                                  });
-                                },
-                              ),
-                              Text(
-                                '${product.quantity}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              _buildQuantityButton(
-                                Icons.add,
-                                () {
-                                  setState(() {
-                                    if (product.quantity < product.stock) {
-                                      product.quantity++;
-                                      updateTotal();
-                                    }
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        )
-                        else if (product.stock == 0)
+                      )
+                    else if (product.stock == 0)
                       Container(
                         height: 32,
                         decoration: BoxDecoration(
@@ -634,53 +634,53 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
                           ),
                         ),
                       )
-                      else
-                        SizedBox(
-                          height: 32,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                product.quantity = 1;
-                                updateTotal();
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF133E87),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size(screenWidth * 0.3, 32),
-                            ),
-                            child: Text('Tambah'),
+                    else
+                      SizedBox(
+                        height: 32,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              product.quantity = 1;
+                              updateTotal();
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF133E87),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size(screenWidth * 0.3, 32),
                           ),
+                          child: Text('Tambah'),
                         ),
-                    ],
-                  ),
-                ],
-              ),
+                      ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildQuantityButton(IconData icon, VoidCallback onPressed) {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF133E87)),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: IconButton(
-        icon: Icon(icon, size: 16, color: const Color(0xFF133E87)),
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        constraints: BoxConstraints(),
-      ),
-    );
-  }
+Widget _buildQuantityButton(IconData icon, VoidCallback onPressed) {
+  return Container(
+    width: 28,
+    height: 28,
+    decoration: BoxDecoration(
+      border: Border.all(color: const Color(0xFF133E87)),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: IconButton(
+      icon: Icon(icon, size: 16, color: const Color(0xFF133E87)),
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      constraints: BoxConstraints(),
+    ),
+  );
+}
 
   List<Map<String, dynamic>> getSelectedProducts() {
     List<Map<String, dynamic>> selectedProducts = [];
