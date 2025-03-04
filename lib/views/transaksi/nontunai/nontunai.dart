@@ -31,11 +31,11 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
   final List<int> years = [];
   final currencyFormatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0);
-  
+
   bool isLoading = false;
   List<Map<String, dynamic>> transactions = [];
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  String? userEmail; 
+  String? userEmail;
 
   @override
   void initState() {
@@ -49,7 +49,7 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
     _loadUserEmail();
   }
 
-    Future<void> _loadUserEmail() async {
+  Future<void> _loadUserEmail() async {
     User? user = _auth.currentUser;
     if (user != null) {
       setState(() {
@@ -61,7 +61,7 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
 
   Future<void> fetchTransactions() async {
     if (userEmail == null) return;
-    
+
     setState(() {
       isLoading = true;
     });
@@ -69,13 +69,13 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
     try {
       // Convert selected month to numeric value (1-12)
       int monthIndex = months.indexOf(selectedMonth) + 1;
-      
+
       // Create date range for selected month and year
       DateTime startDate = DateTime(selectedYear, monthIndex, 1);
-      DateTime endDate = monthIndex < 12 
+      DateTime endDate = monthIndex < 12
           ? DateTime(selectedYear, monthIndex + 1, 1)
           : DateTime(selectedYear + 1, 1, 1);
-      
+
       // Query Firestore for non-cash transactions in the date range
       QuerySnapshot querySnapshot = await FirebaseFirestore.instance
           .collection('transaksi')
@@ -110,40 +110,47 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios,
+              color: Colors.white, size: screenWidth * 0.06),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Transaksi Non-Tunai',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
+            fontSize: screenWidth * 0.045,
           ),
         ),
         backgroundColor: Color(0xFF133E87),
         elevation: 0,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
           children: [
             Row(
               children: [
                 Expanded(
                   child: _buildDropdown(
-                    selectedMonth, 
+                    selectedMonth,
                     months,
                     (val) {
                       setState(() => selectedMonth = val!);
                       fetchTransactions();
-                    }
+                    },
+                    context,
                   ),
                 ),
-                SizedBox(width: 12),
+                SizedBox(width: screenWidth * 0.03),
                 Expanded(
                   child: _buildDropdown(
                     selectedYear.toString(),
@@ -151,26 +158,33 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
                     (val) {
                       setState(() => selectedYear = int.parse(val!));
                       fetchTransactions();
-                    }
+                    },
+                    context,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: screenHeight * 0.02),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _refreshTransactions,
                 child: isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : transactions.isEmpty
-                    ? Center(child: Text('Tidak ada transaksi non-tunai pada periode ini'))
-                    : ListView.builder(
-                        padding: EdgeInsets.all(16),
-                        itemCount: transactions.length,
-                        itemBuilder: (context, index) {
-                          return _buildTransactionCard(transactions[index]);
-                        },
-                      ),
+                    ? Center(child: CircularProgressIndicator())
+                    : transactions.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Tidak ada transaksi non-tunai pada periode ini',
+                              style: TextStyle(fontSize: screenWidth * 0.04),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: EdgeInsets.all(screenWidth * 0.03),
+                            itemCount: transactions.length,
+                            itemBuilder: (context, index) {
+                              return _buildTransactionCard(
+                                  transactions[index], context);
+                            },
+                          ),
               ),
             ),
           ],
@@ -184,25 +198,38 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
   }
 
   Widget _buildDropdown(
-      String value, List<String> items, ValueChanged<String?> onChanged) {
+      String value, List<String> items, ValueChanged<String?> onChanged, BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.04,
+        vertical: screenHeight * 0.005,
+      ),
       decoration: BoxDecoration(
         color: Color(0xFF133E87),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(screenWidth * 0.03),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          icon: Icon(Icons.keyboard_arrow_down, color: Colors.white),
-          style: TextStyle(color: Colors.white),
+          icon: Icon(Icons.keyboard_arrow_down,
+              color: Colors.white, size: screenWidth * 0.06),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: screenWidth * 0.04,
+          ),
           dropdownColor: Color(0xFF133E87),
           items: items.map((String item) {
             return DropdownMenuItem<String>(
                 value: item,
                 child: Text(
                   item,
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: screenWidth * 0.04,
+                  ),
                 ));
           }).toList(),
           onChanged: onChanged,
@@ -212,111 +239,164 @@ class _TransaksiNonTunaiScreenState extends State<TransaksiNonTunaiScreen> {
     );
   }
 
-  Widget _buildTransactionCard(Map<String, dynamic> transaction) {
-  // Format date from timestamp
-  String formattedDate = '';
-  if (transaction['timestamp'] != null) {
-    Timestamp timestamp = transaction['timestamp'] as Timestamp;
-    DateTime dateTime = timestamp.toDate();
-    formattedDate = DateFormat('dd/MM/yyyy').format(dateTime);
-  }
+  Widget _buildTransactionCard(
+      Map<String, dynamic> transaction, BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
 
-  // Format amount
-  String formattedAmount = currencyFormatter.format(transaction['totalAmount'] ?? 0);
+    // Format date from timestamp
+    String formattedDate = '';
+    if (transaction['timestamp'] != null) {
+      Timestamp timestamp = transaction['timestamp'] as Timestamp;
+      DateTime dateTime = timestamp.toDate();
+      formattedDate = DateFormat('dd/MM/yyyy').format(dateTime);
+    }
 
-  // Get transaction status
-  String status = transaction['status'] ?? 'Berhasil';
+    // Format amount
+    String formattedAmount =
+        currencyFormatter.format(transaction['totalAmount'] ?? 0);
 
-  // Get transaction ID
-  String transactionId = transaction['transactionId'] ?? transaction['id'] ?? 'Unknown';
+    // Get transaction status
+    String status = transaction['status'] ?? 'Berhasil';
 
-  return GestureDetector(
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DetailNonTunaiScreen(transactionId: transactionId),
-        ),
-      );
-    },
-    child: Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFFE0E0E0), width: 1),
-      ),
-      elevation: 6,
-      shadowColor: Colors.black26,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Colors.white, Color(0xFFF5F5F5)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+    // Get transaction ID
+    String transactionId = transaction['transactionId'] ?? transaction['id'] ?? 'Unknown';
+
+    // Define status color
+    Color statusColor = status == 'Berhasil' ? Colors.green : Colors.green;
+
+    // Define text style for info items (date, QRIS, amount)
+    TextStyle infoTextStyle = TextStyle(
+      color: Colors.black87,
+      fontSize: screenWidth * 0.035,
+    );
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                DetailNonTunaiScreen(transactionId: transactionId),
           ),
-          borderRadius: BorderRadius.circular(20),
+        );
+      },
+      child: Card(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(screenWidth * 0.05),
+          side: BorderSide(
+              color: Color(0xFFE0E0E0), width: screenWidth * 0.002),
         ),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Text(
+        elevation: 4,
+        shadowColor: Colors.black26,
+        margin: EdgeInsets.only(bottom: screenHeight * 0.02),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.white, Color(0xFFF5F5F5)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.circular(screenWidth * 0.05),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(screenWidth * 0.04),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
                         transactionId,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Color(0xFF133E98),
+                          fontSize: screenWidth * 0.04,
+                          color: Color(0xFF133E87),
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(width: 8),
-                      Text(
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth * 0.02,
+                        vertical: screenHeight * 0.005,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(screenWidth * 0.01),
+                      ),
+                      child: Text(
                         status,
                         style: TextStyle(
-                          color: status == 'Berhasil' ? Colors.green : Colors.orange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
+                          color: statusColor,
+                          fontSize: screenWidth * 0.03,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ],
-                  ),
-                  Text(
-                    formattedAmount,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Color(0xFF133E98),
                     ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              Divider(color: Colors.grey),
-              SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 16, color: Colors.black54),
-                  SizedBox(width: 8),
-                  Text(formattedDate),
-                ],
-              ),
-              SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.account_balance_wallet, size: 16, color: Colors.black54),
-                  SizedBox(width: 8),
-                  Text('QRIS'),
-                ],
-              ),
-            ],
+                  ],
+                ),
+                SizedBox(height: screenHeight * 0.015),
+                Divider(color: Colors.grey.shade300, height: screenHeight * 0.002),
+                SizedBox(height: screenHeight * 0.015),
+
+                // Date
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: screenWidth * 0.045,
+                      color: Color(0xFF133E87),
+                    ),
+                    SizedBox(width: screenWidth * 0.02),
+                    Text(
+                      formattedDate,
+                      style: infoTextStyle,
+                    ),
+                  ],
+                ),
+                SizedBox(height: screenHeight * 0.01),
+
+                // Payment method
+                Row(
+                  children: [
+                    Icon(
+                      Icons.account_balance_wallet,
+                      size: screenWidth * 0.045,
+                      color: Color(0xFF133E87),
+                    ),
+                    SizedBox(width: screenWidth * 0.02),
+                    Text(
+                      'QRIS',
+                      style: infoTextStyle,
+                    ),
+                  ],
+                ),
+                SizedBox(height: screenHeight * 0.01),
+
+                // Amount
+                Row(
+                  children: [
+                    Icon(
+                      Icons.attach_money,
+                      size: screenWidth * 0.045,
+                      color: Color(0xFF133E87),
+                    ),
+                    SizedBox(width: screenWidth * 0.02),
+                    Text(
+                      formattedAmount,
+                      style: infoTextStyle,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
