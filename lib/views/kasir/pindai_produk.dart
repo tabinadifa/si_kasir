@@ -210,7 +210,6 @@ class _PindaiProdukScreenState extends State<PindaiProdukScreen> {
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () {
-                                  // Navigate back to DaftarProdukScreen with the scanned product
                                   Navigator.pop(context, scanResult);
                                 },
                                 style: ElevatedButton.styleFrom(
