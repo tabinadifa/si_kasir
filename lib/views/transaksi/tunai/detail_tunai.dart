@@ -73,6 +73,9 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
   bool _isLoading = true;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
+  // Warna utama aplikasi
+  final Color primaryColor = const Color(0xFF133E87);
+  
   // Format currency dengan pemisah ribuan (.)
   final NumberFormat currencyFormatter = NumberFormat.currency(
     locale: 'id_ID',
@@ -105,7 +108,7 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
       } else {
         // Handle case where document doesn't exist
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transaksi tidak ditemukan')),
+          const SnackBar(content: Text('Transaksi tidak ditemukan')),
         );
         setState(() {
           _isLoading = false;
@@ -126,7 +129,7 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
@@ -139,11 +142,11 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        backgroundColor: const Color(0xFF133E87),
+        backgroundColor: primaryColor,
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: primaryColor))
           : SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -165,6 +168,7 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
   Widget _buildTransactionDetailCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -201,7 +205,7 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF133E98), size: 24),
+          Icon(icon, color: primaryColor, size: 24),
           const SizedBox(width: 12.0),
           Expanded(
             child: Column(
@@ -231,6 +235,7 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
   Widget _buildItemDetailCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -279,10 +284,10 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
                 ),
                 Text(
                   currencyFormatter.format(_transactionDetail!.amount),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF133E98),
+                    color: primaryColor,
                   ),
                 ),
               ],
@@ -296,6 +301,7 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
   Widget _buildPaymentInfoCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -330,9 +336,9 @@ class _DetailTunaiScreenState extends State<DetailTunaiScreen> {
                   'Status',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
-                Text(
-                  _transactionDetail!.status,
-                  style: const TextStyle(
+                const Text(
+                  'Lunas',
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.green,
                     fontSize: 15,
