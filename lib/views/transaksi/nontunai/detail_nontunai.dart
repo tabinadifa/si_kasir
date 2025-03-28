@@ -165,6 +165,7 @@ class _DetailNonTunaiScreenState extends State<DetailNonTunaiScreen> {
   Widget _buildTransactionDetailCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -201,7 +202,7 @@ class _DetailNonTunaiScreenState extends State<DetailNonTunaiScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF133E98), size: 24),
+          Icon(icon, color: const Color(0xFF133E87), size: 24),
           const SizedBox(width: 12.0),
           Expanded(
             child: Column(
@@ -231,6 +232,7 @@ class _DetailNonTunaiScreenState extends State<DetailNonTunaiScreen> {
   Widget _buildItemDetailCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -282,7 +284,7 @@ class _DetailNonTunaiScreenState extends State<DetailNonTunaiScreen> {
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF133E98),
+                    color: Color(0xFF133E87),
                   ),
                 ),
               ],
@@ -296,6 +298,7 @@ class _DetailNonTunaiScreenState extends State<DetailNonTunaiScreen> {
   Widget _buildPaymentInfoCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
