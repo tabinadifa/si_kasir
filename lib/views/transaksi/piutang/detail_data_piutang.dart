@@ -163,6 +163,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
 
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -203,7 +204,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Icon(icon, color: Color(0xFF133E98), size: 24),
+          Icon(icon, color: Color(0xFF133E87), size: 24),
           SizedBox(width: 12.0),
           Expanded(
             child: Column(
@@ -235,6 +236,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
 
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -301,7 +303,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF133E98),
+                    color: Color(0xFF133E87),
                   ),
                 ),
               ],
@@ -315,6 +317,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
   Widget _buildPaymentInfoCard() {
     return Card(
       elevation: 3,
+      color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -346,6 +349,8 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                         borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       prefixText: 'Rp ',
+                      fillColor: Colors.white,
+                      filled: true,
                     ),
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
@@ -399,6 +404,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey.shade300),
                     borderRadius: BorderRadius.circular(8),
+                    color: Colors.white,
                   ),
                   padding: EdgeInsets.symmetric(horizontal: 12),
                   child: DropdownButtonHideUnderline(
