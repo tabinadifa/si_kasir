@@ -60,14 +60,18 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
         backgroundColor: Color(0xFF133E87),
         elevation: 0,
       ),
-      body: Padding(
-        padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
-        child: Column(
-          children: [
-            _buildYearDropdown(),
-            SizedBox(height: isSmallScreen ? 8 : 12),
-            _buildProductCard(context),
-          ],
+      backgroundColor: Colors.white, 
+      body: Container(
+        color: Colors.white,
+        child: Padding(
+          padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+          child: Column(
+            children: [
+              _buildYearDropdown(),
+              SizedBox(height: isSmallScreen ? 8 : 12),
+              _buildProductCard(context),
+            ],
+          ),
         ),
       ),
     );
@@ -77,7 +81,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Color(0xFF133E98),
+        color: Color(0xFF133E87),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -96,7 +100,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           ),
           DropdownButton<int>(
             value: selectedYear,
-            dropdownColor: Color(0xFF133E98),
+            dropdownColor: Color(0xFF133E87),
             icon: Icon(Icons.arrow_drop_down, color: Colors.white),
             underline: SizedBox(),
             style: TextStyle(color: Colors.white, fontSize: 16),
@@ -156,13 +160,13 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Color(0xFF133E87).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Aktif',
                   style: TextStyle(
-                    color: Colors.blue,
+                    color: Color(0xFF133E87),
                     fontSize: isSmallScreen ? 10 : 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -227,10 +231,10 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
       padding: EdgeInsets.symmetric(
           vertical: isSmallScreen ? 8 : 12, horizontal: isSmallScreen ? 4 : 8),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white, 
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.grey,
+          color: Colors.grey[300]!,
           width: 1,
         ),
       ),
@@ -267,10 +271,10 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     return Container(
       padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white, 
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.grey,
+          color: Colors.grey[300]!,
           width: 1,
         ),
       ),
@@ -293,13 +297,13 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.green[50],
+                  color: Colors.grey[200], 
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'Terlaris',
                   style: TextStyle(
-                    color: Colors.green[700],
+                    color: Colors.black,
                     fontSize: isSmallScreen ? 10 : 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -380,7 +384,7 @@ void main() {
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       primaryColor: Color(0xFF133E87),
-      scaffoldBackgroundColor: Colors.white,
+      scaffoldBackgroundColor: Colors.white, 
     ),
     home: ProdukTerjualScreen(),
   ));
