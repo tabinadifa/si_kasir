@@ -151,6 +151,31 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
     });
   }
 
+  void _addScannedProductToCart(Product product) {
+  setState(() {
+    // Find the product in categoryProducts and update its quantity
+    bool found = false;
+    categoryProducts.forEach((category, products) {
+      final index = products.indexWhere((p) => p.id == product.id);
+      if (index != -1) {
+        if (products[index].stock > products[index].quantity) {
+          products[index].quantity++;
+          found = true;
+        }
+      }
+    });
+    
+    // If product not found in existing categories, add it to the first category
+    if (!found) {
+      final firstCategory = categoryProducts.keys.first;
+      product.quantity = 1;
+      categoryProducts[firstCategory]?.add(product);
+    }
+    
+    updateTotal();
+  });
+}
+
   Future<void> deleteProduct(String productId) async {
     try {
       await _firestore.collection('produk').doc(productId).delete();
@@ -225,12 +250,30 @@ Widget build(BuildContext context) {
         ),
         Expanded(
           child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildProductList(),
-              PindaiProdukScreen(),
-            ],
-          ),
+  controller: _tabController,
+  children: [
+    _buildProductList(),
+    FutureBuilder<Product?>(
+      future: Navigator.push<Product?>(
+        context,
+        MaterialPageRoute(builder: (context) => PindaiProdukScreen()),
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data != null) {
+          // Add the scanned product to cart
+          _addScannedProductToCart(snapshot.data!);
+          // Return to product list tab
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _tabController.animateTo(0);
+          });
+        }
+        return Center(
+          child: Text('Arahkan kamera ke barcode produk'),
+        );
+      },
+    ),
+  ],
+),
         ),
         if (showTotal)
           Container(

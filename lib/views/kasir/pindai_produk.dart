@@ -24,30 +24,23 @@ class _PindaiProdukScreenState extends State<PindaiProdukScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> checkProductAvailability(String barcode) async {
-    final User? user = _auth.currentUser;
-    if (user != null) {
-      final QuerySnapshot querySnapshot = await _firestore
-          .collection('produk')
-          .where('barcode', isEqualTo: barcode)
-          .where('email', isEqualTo: user.email)
-          .get();
+// In PindaiProdukScreen.dart
+Future<Product?> checkProductAvailability(String barcode) async {
+  final User? user = _auth.currentUser;
+  if (user != null) {
+    final QuerySnapshot querySnapshot = await _firestore
+        .collection('produk')
+        .where('barcode', isEqualTo: barcode)
+        .where('email', isEqualTo: user.email)
+        .get();
 
-      if (querySnapshot.docs.isNotEmpty) {
-        setState(() {
-          isProductAvailable = true;
-          scanResult = barcode;
-          isScanning = false;
-        });
-      } else {
-        setState(() {
-          isProductAvailable = false;
-          scanResult = 'Produk tidak tersedia';
-          isScanning = false;
-        });
-      }
+    if (querySnapshot.docs.isNotEmpty) {
+      final doc = querySnapshot.docs.first;
+      return Product.fromFirestore(doc);
     }
   }
+  return null;
+}
 
   @override
   Widget build(BuildContext context) {
@@ -56,12 +49,28 @@ class _PindaiProdukScreenState extends State<PindaiProdukScreen> {
         children: [
           MobileScanner(
             controller: controller,
-            onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                checkProductAvailability(barcode.rawValue ?? '');
+            onDetect: (capture) async {
+                final List<Barcode> barcodes = capture.barcodes;
+            for (final barcode in barcodes) {
+              final product = await checkProductAvailability(barcode.rawValue ?? '');
+              if (product != null && mounted) {
+                setState(() {
+                  isProductAvailable = true;
+                  scanResult = product.name;
+                  isScanning = false;
+                });
+                // Return the product to the previous screen
+                Navigator.pop(context, product);
+              } else if (mounted) {
+                setState(() {
+                  isProductAvailable = false;
+                  scanResult = 'Produk tidak tersedia';
+                  isScanning = false;
+                });
               }
-            },
+              break; // Only process the first barcode
+            }
+         },
           ),
           // Overlay Design
           ShaderMask(
@@ -206,25 +215,6 @@ class _PindaiProdukScreenState extends State<PindaiProdukScreen> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          if (isProductAvailable)
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context, scanResult);
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  backgroundColor: primaryBlue,
-                                  foregroundColor: pureWhite,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text('Tambah ke Keranjang'),
-                            
-                            ),
-                          ),
                         ],
                       ),
                     ],
