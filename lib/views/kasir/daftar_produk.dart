@@ -153,7 +153,6 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
 
   void _addScannedProductToCart(Product product) {
   setState(() {
-    // Find the product in categoryProducts and update its quantity
     bool found = false;
     categoryProducts.forEach((category, products) {
       final index = products.indexWhere((p) => p.id == product.id);
@@ -165,7 +164,6 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
       }
     });
     
-    // If product not found in existing categories, add it to the first category
     if (!found) {
       final firstCategory = categoryProducts.keys.first;
       product.quantity = 1;
