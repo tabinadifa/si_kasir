@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class ProdukTerjualScreen extends StatefulWidget {
   @override
@@ -9,6 +12,81 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
   int selectedYear = DateTime.now().year;
   final int endYear = DateTime.now().year;
   final int startYear = DateTime.now().year - 5;
+
+  // Firebase related variables
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String? userEmail;
+  List<Map<String, dynamic>> products = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _getUserData();
+  }
+
+  Future<void> _getUserData() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      setState(() {
+        userEmail = user.email;
+      });
+      await _fetchProducts();
+    }
+  }
+
+  Future<void> _fetchProducts() async {
+  if (userEmail == null) return;
+
+  try {
+    final produkQuery = await _firestore
+        .collection('produk')
+        .where('email', isEqualTo: userEmail)
+        .get();
+
+    List<Map<String, dynamic>> tempProducts = [];
+
+    for (var doc in produkQuery.docs) {
+      final produkData = doc.data();
+      final produkId = doc.id;
+
+      final transaksiQuery = await _firestore
+          .collection('transaksi')
+          .where('produkId', isEqualTo: produkId)
+          .where('email', isEqualTo: userEmail)
+          .where('tahun', isEqualTo: selectedYear)
+          .get();
+
+      int totalTerjual = 0;
+      for (var transaksi in transaksiQuery.docs) {
+        try {
+          totalTerjual += (transaksi.data()['quantity'] as num).toInt();
+        } catch (e) {
+          print('Error on transaction ${transaksi.id}: $e');
+        }
+      }
+
+      tempProducts.add({
+        'id': produkId,
+        'nama': produkData['nama'] ?? 'No Name',
+        'stok': (produkData['stok'] as num).toInt(),
+        'harga': (produkData['harga'] as num).toInt(),
+        'status': produkData['status'] ?? 'Aktif',
+        'terjual': totalTerjual,
+      });
+    }
+
+    setState(() {
+      products = tempProducts;
+      isLoading = false;
+    });
+
+  } catch (e) {
+    print('Error fetching products: $e');
+    setState(() => isLoading = false);
+  }
+}
 
   Widget _buildExportButton() {
     return Container(
@@ -69,7 +147,53 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
             children: [
               _buildYearDropdown(),
               SizedBox(height: isSmallScreen ? 8 : 12),
-              _buildProductCard(context),
+              if (isLoading)
+                Expanded(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF133E87)),
+                    ),
+                  ),
+                )
+              else if (products.isEmpty)
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[400]),
+                        SizedBox(height: 16),
+                        Text(
+                          'Tidak ada produk ditemukan',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Tahun $selectedYear',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: products.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
+                        child: _buildProductCard(context, products[index]),
+                      );
+                    },
+                  ),
+                ),
             ],
           ),
         ),
@@ -108,6 +232,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
               setState(() {
                 selectedYear = newValue!;
               });
+              _fetchProducts();
             },
             items: List.generate(
               endYear - startYear + 1,
@@ -123,7 +248,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     );
   }
 
-  Widget _buildProductCard(BuildContext context) {
+  Widget _buildProductCard(BuildContext context, Map<String, dynamic> product) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
 
@@ -147,11 +272,15 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Kopi Renceng',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 18 : 20,
-                  fontWeight: FontWeight.bold,
+              Flexible(
+                child: Text(
+                  product['nama'],
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 18 : 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
               Container(
@@ -160,13 +289,18 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Color(0xFF133E87).withOpacity(0.1),
+                  color: (product['status'] == 'Aktif'
+                          ? Color(0xFF133E87)
+                          : Colors.red)
+                      .withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'Aktif',
+                  product['status'],
                   style: TextStyle(
-                    color: Color(0xFF133E87),
+                    color: product['status'] == 'Aktif'
+                        ? Color(0xFF133E87)
+                        : Colors.red,
                     fontSize: isSmallScreen ? 10 : 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -174,15 +308,16 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
               ),
             ],
           ),
-          _buildStats(context),
+          SizedBox(height: isSmallScreen ? 8 : 12),
+          _buildStats(context, product),
           SizedBox(height: isSmallScreen ? 12 : 16),
-          _buildProductDetail(context),
+          _buildProductDetail(context, product),
         ],
       ),
     );
   }
 
-  Widget _buildStats(BuildContext context) {
+  Widget _buildStats(BuildContext context, Map<String, dynamic> product) {
     final screenWidth = MediaQuery.of(context).size.width;
     // ignore: unused_local_variable
     final isSmallScreen = screenWidth < 360;
@@ -193,7 +328,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           child: _buildStatItem(
             context,
             icon: Icons.inventory_2_outlined,
-            value: '3',
+            value: '${(product['stok'] ?? 0) + (product['terjual'] ?? 0)}',
             label: 'Total\nProduk',
           ),
         ),
@@ -201,7 +336,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           child: _buildStatItem(
             context,
             icon: Icons.shopping_cart_outlined,
-            value: '2',
+            value: '${product['terjual'] ?? 0}',
             label: 'Terjual',
           ),
         ),
@@ -209,7 +344,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           child: _buildStatItem(
             context,
             icon: Icons.store_outlined,
-            value: '1',
+            value: '${product['stok'] ?? 0}',
             label: 'Tersisa',
           ),
         ),
@@ -264,7 +399,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     );
   }
 
-  Widget _buildProductDetail(BuildContext context) {
+  Widget _buildProductDetail(BuildContext context, Map<String, dynamic> product) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
 
@@ -284,72 +419,85 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Kopi Goodday',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 16,
-                  fontWeight: FontWeight.bold,
+              Flexible(
+                child: Text(
+                  product['nama'],
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 14 : 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSmallScreen ? 6 : 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200], 
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Terlaris',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: isSmallScreen ? 10 : 12,
-                    fontWeight: FontWeight.w600,
+              if (product['isBestSeller'])
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 6 : 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200], 
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Terlaris',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: isSmallScreen ? 10 : 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           SizedBox(height: isSmallScreen ? 8 : 12),
           _buildInfoRow(
             context,
             Icons.calendar_month_outlined,
-            'Periode: Januari 2024',
+            'Periode: Januari $selectedYear',
           ),
           SizedBox(height: isSmallScreen ? 6 : 8),
           _buildInfoRow(
             context,
             Icons.attach_money,
-            'Harga: Rp12.000',
+            'Harga: Rp${NumberFormat().format(product['harga'] ?? 0)}',
           ),
-          SizedBox(height: isSmallScreen ? 8 : 12),
-          Container(
-            padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-            decoration: BoxDecoration(
-              color: Color(0xFF133E87).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.analytics_outlined,
-                  color: Color(0xFF133E87),
-                  size: isSmallScreen ? 16 : 18,
-                ),
-                SizedBox(width: isSmallScreen ? 6 : 8),
-                Expanded(
-                  child: Text(
-                    'Paling laris di kategori kopi renceng',
-                    style: TextStyle(
-                      color: Color(0xFF133E87),
-                      fontSize: isSmallScreen ? 12 : 13,
+          SizedBox(height: isSmallScreen ? 6 : 8),
+          _buildInfoRow(
+            context,
+            Icons.category_outlined,
+            'Kategori: ${product['kategori']}',
+          ),
+          if (product['isBestSeller']) ...[
+            SizedBox(height: isSmallScreen ? 8 : 12),
+            Container(
+              padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+              decoration: BoxDecoration(
+                color: Color(0xFF133E87).withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.analytics_outlined,
+                    color: Color(0xFF133E87),
+                    size: isSmallScreen ? 16 : 18,
+                  ),
+                  SizedBox(width: isSmallScreen ? 6 : 8),
+                  Expanded(
+                    child: Text(
+                      'Paling laris di kategori ${product['kategori']}',
+                      style: TextStyle(
+                        color: Color(0xFF133E87),
+                        fontSize: isSmallScreen ? 12 : 13,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -367,11 +515,14 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           color: Colors.grey[600],
         ),
         SizedBox(width: isSmallScreen ? 6 : 8),
-        Text(
-          text,
-          style: TextStyle(
-            color: Colors.grey[800],
-            fontSize: isSmallScreen ? 12 : 14,
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontSize: isSmallScreen ? 12 : 14,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -384,7 +535,7 @@ void main() {
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       primaryColor: Color(0xFF133E87),
-      scaffoldBackgroundColor: Colors.white, 
+      scaffoldBackgroundColor: Colors.white,
     ),
     home: ProdukTerjualScreen(),
   ));
