@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
+// ignore: depend_on_referenced_packages
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:si_kasir/views/kasir/daftar_produk.dart'; 
 
 class PindaiProdukScreen extends StatefulWidget {
   const PindaiProdukScreen({super.key});
@@ -15,63 +13,31 @@ class _PindaiProdukScreenState extends State<PindaiProdukScreen> {
   MobileScannerController controller = MobileScannerController();
   String scanResult = '';
   bool isScanning = true;
-  bool isProductAvailable = false;
 
+  // Define custom colors
   final Color primaryBlue = const Color(0xFF133E87);
   final Color pureWhite = Colors.white;
   final Color pureBlack = Colors.black;
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-// In PindaiProdukScreen.dart
-Future<Product?> checkProductAvailability(String barcode) async {
-  final User? user = _auth.currentUser;
-  if (user != null) {
-    final QuerySnapshot querySnapshot = await _firestore
-        .collection('produk')
-        .where('barcode', isEqualTo: barcode)
-        .where('email', isEqualTo: user.email)
-        .get();
-
-    if (querySnapshot.docs.isNotEmpty) {
-      final doc = querySnapshot.docs.first;
-      return Product.fromFirestore(doc);
-    }
-  }
-  return null;
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
+          // Scanner View
           MobileScanner(
             controller: controller,
-            onDetect: (capture) async {
-                final List<Barcode> barcodes = capture.barcodes;
-            for (final barcode in barcodes) {
-              final product = await checkProductAvailability(barcode.rawValue ?? '');
-              if (product != null && mounted) {
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
                 setState(() {
-                  isProductAvailable = true;
-                  scanResult = product.name;
-                  isScanning = false;
-                });
-                // Return the product to the previous screen
-                Navigator.pop(context, product);
-              } else if (mounted) {
-                setState(() {
-                  isProductAvailable = false;
-                  scanResult = 'Produk tidak tersedia';
+                  scanResult = barcode.rawValue ?? 'Failed to scan';
                   isScanning = false;
                 });
               }
-              break; // Only process the first barcode
-            }
-         },
+            },
           ),
+
           // Overlay Design
           ShaderMask(
             shaderCallback: (Rect bounds) {
@@ -79,9 +45,11 @@ Future<Product?> checkProductAvailability(String barcode) async {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
+                  // ignore: deprecated_member_use
                   pureBlack.withOpacity(0.5),
                   Colors.transparent,
                   Colors.transparent,
+                  // ignore: deprecated_member_use
                   pureBlack.withOpacity(0.5),
                 ],
                 stops: const [0.0, 0.3, 0.7, 1.0],
@@ -94,6 +62,7 @@ Future<Product?> checkProductAvailability(String barcode) async {
               color: Colors.transparent,
             ),
           ),
+
           // Scan Area Indicator
           Center(
             child: Column(
@@ -156,6 +125,28 @@ Future<Product?> checkProductAvailability(String barcode) async {
               ],
             ),
           ),
+
+          // Top Bar Controls
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _buildControlButton(
+                    icon: Icons.flashlight_on,
+                    onPressed: () => controller.toggleTorch(),
+                  ),
+                  const SizedBox(width: 16),
+                  _buildControlButton(
+                    icon: Icons.cameraswitch,
+                    onPressed: () => controller.switchCamera(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // Bottom Result Card
           if (scanResult.isNotEmpty && !isScanning)
             Positioned(
@@ -174,7 +165,7 @@ Future<Product?> checkProductAvailability(String barcode) async {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isProductAvailable ? 'Produk Terdeteksi' : 'Produk Tidak Tersedia',
+                        'Produk Terdeteksi',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -215,6 +206,23 @@ Future<Product?> checkProductAvailability(String barcode) async {
                             ),
                           ),
                           const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context, scanResult);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                backgroundColor: primaryBlue,
+                                foregroundColor: pureWhite,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Tambah ke Keranjang'),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -223,6 +231,24 @@ Future<Product?> checkProductAvailability(String barcode) async {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        // ignore: deprecated_member_use
+        color: pureBlack.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: pureWhite, size: 28),
+        onPressed: onPressed,
+        splashRadius: 28,
       ),
     );
   }
