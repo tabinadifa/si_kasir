@@ -67,7 +67,7 @@ class DetailProdukScreen extends StatelessWidget {
                       );
                     },
                     child: Hero(
-                      tag: 'product-${product.product_id}',
+                      tag: 'product-${product.productId}',
                       child: Image.network(
                         imageUrl,
                         width: screenSize.width,
@@ -235,7 +235,7 @@ class DetailProdukScreen extends StatelessWidget {
                         _buildDetailItem(
                           icon: Icons.tag_outlined,
                           title: 'ID Produk',
-                          value: product.product_id,
+                          value: product.productId,
                           showDivider: true,
                           iconColor: primaryBlue,
                         ),

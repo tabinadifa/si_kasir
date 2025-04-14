@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:si_kasir/views/kasir/update_produk.dart';
 import 'package:si_kasir/views/kasir/create_produk.dart';
-import 'package:si_kasir/views/kasir/pindai_produk.dart';
+import 'package:si_kasir/views/kasir/scan_produk.dart';
 import 'package:si_kasir/views/kasir/transaksi.dart';
 import 'package:si_kasir/views/kasir/detail_produk.dart';
 
@@ -19,7 +19,7 @@ class Product {
   final String name;
   final String description;
   final double price;
-  final String product_id;
+  final String productId;
   final double buyPrice;
   final String imageUrl;
   final String barcode;
@@ -35,7 +35,7 @@ class Product {
     required this.price,
     required this.buyPrice,
     required this.imageUrl,
-    required this.product_id,
+    required this.productId,
     required this.stock,
     required this.category,
     this.quantity = 0,
@@ -45,7 +45,7 @@ class Product {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Product(
       id: doc.id,
-      product_id: data['productId'] ?? '',
+      productId: data['productId'] ?? '',
       name: data['namaProduk'] ?? '',
       description: data['deskripsi'] ?? '',
       price: (data['hargaJual'] ?? 0).toDouble(),
@@ -77,10 +77,10 @@ class DaftarProdukScreen extends StatefulWidget {
   const DaftarProdukScreen({super.key});
 
   @override
-  _DaftarProdukScreen createState() => _DaftarProdukScreen();
+  _DaftarProdukScreenState createState() => _DaftarProdukScreenState();
 }
 
-class _DaftarProdukScreen extends State<DaftarProdukScreen>
+class _DaftarProdukScreenState extends State<DaftarProdukScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -109,7 +109,7 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
     _loadProducts();
   }
 
-  void _loadProducts() async {
+  Future<void> _loadProducts() async {
     final User? user = _auth.currentUser;
     if (user != null) {
       final QuerySnapshot querySnapshot = await _firestore
@@ -153,7 +153,7 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
   Future<void> deleteProduct(String productId) async {
     try {
       await _firestore.collection('produk').doc(productId).delete();
-      _loadProducts();
+      await _loadProducts();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Produk berhasil dihapus')),
       );
@@ -196,10 +196,10 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
               style: const TextStyle(fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Cari produk kamu di sini',
-                hintStyle: TextStyle(fontSize: 14, color: Colors.black),
-                prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
+                hintStyle: const TextStyle(fontSize: 14, color: Colors.black),
+                prefixIcon: const Icon(Icons.search, color: Colors.black, size: 20),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 15),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 15),
               ),
             ),
           ),
@@ -227,7 +227,39 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
               controller: _tabController,
               children: [
                 _buildProductList(),
-                PindaiProdukScreen(),
+                ScanProdukScreen(
+                  onProductScanned: (product) {
+                    setState(() {
+                      bool productExists = false;
+                      
+                      categoryProducts.forEach((category, products) {
+                        final existingProductIndex = products.indexWhere((p) => p.id == product.id);
+                        if (existingProductIndex != -1) {
+                          if (products[existingProductIndex].quantity < products[existingProductIndex].stock) {
+                            products[existingProductIndex].quantity++;
+                            productExists = true;
+                          }
+                        }
+                      });
+                      
+                      if (!productExists) {
+                        bool categoryFound = false;
+                        categoryProducts.forEach((category, products) {
+                          if (category == product.category) {
+                            products.add(product as Product);
+                            categoryFound = true;
+                          }
+                        });
+                        
+                        if (!categoryFound) {
+                          categoryProducts[product.category] = [product as Product];
+                        }
+                      }
+                      
+                      updateTotal();
+                    });
+                  },
+                ),
               ],
             ),
           ),
@@ -287,7 +319,7 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
                     builder: (context) => CreateProdukScreen(productId: ''),
                   ),
                 );
-                _loadProducts();
+                await _loadProducts();
               },
               backgroundColor: const Color(0xFF133E87),
               child: const Icon(Icons.add, color: Colors.white),
@@ -298,12 +330,12 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
 
   Widget _buildProductList() {
     if (categoryProducts.isEmpty) {
-      return Center(
+      return const Center(
         child: Text(
           'Tidak ada produk yang tersedia',
           style: TextStyle(
             fontSize: 16,
-            color: Colors.grey[600],
+            color: Colors.grey,
           ),
         ),
       );
@@ -325,12 +357,12 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
     });
 
     if (!hasProducts) {
-      return Center(
+      return const Center(
         child: Text(
           'Tidak ada produk yang tersedia',
           style: TextStyle(
             fontSize: 16,
-            color: Colors.grey[600],
+            color: Colors.grey,
           ),
         ),
       );
@@ -380,7 +412,7 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
 
   Widget _buildProductCard(Product product) {
     final screenWidth = MediaQuery.of(context).size.width;
-    String imageUrl = '${product.imageUrl}';
+    String imageUrl = product.imageUrl;
 
     return GestureDetector(
       onTap: () {
@@ -458,14 +490,15 @@ class _DaftarProdukScreen extends State<DaftarProdukScreen>
                         child: PopupMenuButton<String>(
                           onSelected: (value) async {
                             if (value == 'edit') {
-                              Navigator.push(
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => UpdateProdukScreen(
                                     productId: product.id,
                                   ),
                                 ),
-                              ).then((_) => _loadProducts());
+                              );
+                              await _loadProducts();
                             } else if (value == 'delete') {
                               bool? confirm = await showDialog<bool>(
                                 context: context,
