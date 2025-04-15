@@ -231,7 +231,7 @@ class _ScanProdukScreenState extends State<ScanProdukScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      Text( 
                         scanResult,
                         style: TextStyle(
                           fontSize: 20,
