@@ -56,7 +56,7 @@ class _ScanProdukScreenState extends State<ScanProdukScreen> {
         final product = Product.fromFirestore(doc);
         
         setState(() {
-          scannedProduct = product;
+          scannedProduct = Product.fromScannedProduct(product); // Menggunakan factory constructor
           scanResult = product.name;
           isScanning = false;
           isLoading = false;
@@ -82,32 +82,13 @@ class _ScanProdukScreenState extends State<ScanProdukScreen> {
             onDetect: (capture) {
               if (!isScanning) return;
               
-                final List<Barcode> barcodes = capture.barcodes;
-            for (final barcode in barcodes) {
-              if (barcode.rawValue != null) {
-                checkProduct(barcode.rawValue!).then((_) {
-                  if (scannedProduct != null) {
-                    // Buat product baru dengan quantity 1
-                    final newProduct = Product.scannedProduct(
-                      id: scannedProduct!.id,
-                      name: scannedProduct!.name,
-                      description: scannedProduct!.description,
-                      barcode: scannedProduct!.barcode,
-                      price: scannedProduct!.price,
-                      buyPrice: scannedProduct!.buyPrice,
-                      imageUrl: scannedProduct!.imageUrl,
-                      productId: scannedProduct!.productId,
-                      stock: scannedProduct!.stock,
-                      category: scannedProduct!.category,
-                    );
-                    setState(() {
-                      this.scannedProduct = newProduct;
-                    });
-                  }
-                });
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                if (barcode.rawValue != null) {
+                  checkProduct(barcode.rawValue!);
+                }
               }
-            }
-          },
+            },
           ),
 
           // Overlay Design
@@ -250,7 +231,7 @@ class _ScanProdukScreenState extends State<ScanProdukScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text( 
+                      Text(
                         scanResult,
                         style: TextStyle(
                           fontSize: 20,
@@ -295,24 +276,36 @@ class _ScanProdukScreenState extends State<ScanProdukScreen> {
                           const SizedBox(width: 16),
                           if (scannedProduct != null)
                             Expanded(
-                                child: ElevatedButton(
-                                    onPressed: scannedProduct == null || widget.onProductScanned == null
-                                    ? null
-                                        : () {
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  if (scannedProduct != null && widget.onProductScanned != null) {
                                     widget.onProductScanned!(scannedProduct!);
-                                    Navigator.pop(context);
+                                    // Tampilkan pesan sukses
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('${scannedProduct!.name} ditambahkan ke keranjang'),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                    // Reset state
+                                    setState(() {
+                                      scanResult = '';
+                                      isScanning = true;
+                                      scannedProduct = null;
+                                    });
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                backgroundColor: scannedProduct == null ? Colors.grey : primaryBlue,
-                                foregroundColor: pureWhite,
-                                shape: RoundedRectangleBorder(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  backgroundColor: primaryBlue,
+                                  foregroundColor: pureWhite,
+                                  shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text('Tambah ke Keranjang'),
+                              ),
                             ),
-                            ),
-                            child: const Text('Tambah ke Keranjang'),
-                        ),
-                        )
                         ],
                       ),
                     ],
@@ -361,7 +354,7 @@ class Product {
   final String name;
   final String description;
   final double price;
-  final String product_id;
+  final String productId; // Diubah dari product_id untuk konsistensi
   final double buyPrice;
   final String imageUrl;
   final String barcode;
@@ -377,17 +370,17 @@ class Product {
     required this.price,
     required this.buyPrice,
     required this.imageUrl,
-    required this.product_id,
+    required this.productId,
     required this.stock,
     required this.category,
-    this.quantity = 1, // Default to 1 for scanned products
+    this.quantity = 0, // Default 0, akan di-set ke 1 saat discan
   });
 
   factory Product.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Product(
       id: doc.id,
-      product_id: data['productId'] ?? '',
+      productId: data['productId'] ?? '',
       name: data['namaProduk'] ?? '',
       description: data['deskripsi'] ?? '',
       price: (data['hargaJual'] ?? 0).toDouble(),
@@ -396,6 +389,22 @@ class Product {
       imageUrl: data['gambarUrl'] ?? '',
       stock: data['stok'] ?? 0,
       category: data['kategori'] ?? '',
+    );
+  }
+
+  factory Product.fromScannedProduct(Product original) {
+    return Product(
+      id: original.id,
+      name: original.name,
+      description: original.description,
+      barcode: original.barcode,
+      price: original.price,
+      buyPrice: original.buyPrice,
+      imageUrl: original.imageUrl,
+      productId: original.productId,
+      stock: original.stock,
+      category: original.category,
+      quantity: 1, // Set quantity ke 1 untuk produk yang discan
     );
   }
 
