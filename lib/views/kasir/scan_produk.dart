@@ -82,13 +82,32 @@ class _ScanProdukScreenState extends State<ScanProdukScreen> {
             onDetect: (capture) {
               if (!isScanning) return;
               
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                if (barcode.rawValue != null) {
-                  checkProduct(barcode.rawValue!);
-                }
+                final List<Barcode> barcodes = capture.barcodes;
+            for (final barcode in barcodes) {
+              if (barcode.rawValue != null) {
+                checkProduct(barcode.rawValue!).then((_) {
+                  if (scannedProduct != null) {
+                    // Buat product baru dengan quantity 1
+                    final newProduct = Product.scannedProduct(
+                      id: scannedProduct!.id,
+                      name: scannedProduct!.name,
+                      description: scannedProduct!.description,
+                      barcode: scannedProduct!.barcode,
+                      price: scannedProduct!.price,
+                      buyPrice: scannedProduct!.buyPrice,
+                      imageUrl: scannedProduct!.imageUrl,
+                      productId: scannedProduct!.productId,
+                      stock: scannedProduct!.stock,
+                      category: scannedProduct!.category,
+                    );
+                    setState(() {
+                      this.scannedProduct = newProduct;
+                    });
+                  }
+                });
               }
-            },
+            }
+          },
           ),
 
           // Overlay Design
