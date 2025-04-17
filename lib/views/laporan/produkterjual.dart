@@ -13,7 +13,6 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
   final int endYear = DateTime.now().year;
   final int startYear = DateTime.now().year - 5;
 
-  // Firebase related variables
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? userEmail;
@@ -37,56 +36,103 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
   }
 
   Future<void> _fetchProducts() async {
-  if (userEmail == null) return;
+    if (userEmail == null) return;
 
-  try {
-    final produkQuery = await _firestore
-        .collection('produk')
-        .where('email', isEqualTo: userEmail)
-        .get();
+    try {
+      final produkQuery = await _firestore
+          .collection('produk')
+          .where('email', isEqualTo: userEmail)
+          .get();
 
-    List<Map<String, dynamic>> tempProducts = [];
-
-    for (var doc in produkQuery.docs) {
-      final produkData = doc.data();
-      final produkId = doc.id;
+      List<Map<String, dynamic>> tempProducts = [];
+      Map<String, int> productSales = {};
 
       final transaksiQuery = await _firestore
           .collection('transaksi')
-          .where('produkId', isEqualTo: produkId)
           .where('email', isEqualTo: userEmail)
-          .where('tahun', isEqualTo: selectedYear)
           .get();
 
-      int totalTerjual = 0;
       for (var transaksi in transaksiQuery.docs) {
-        try {
-          totalTerjual += (transaksi.data()['quantity'] as num).toInt();
-        } catch (e) {
-          print('Error on transaction ${transaksi.id}: $e');
+        final transaksiData = transaksi.data();
+        final timestamp = transaksiData['timestamp'] as Timestamp?;
+        
+        if (timestamp != null && timestamp.toDate().year == selectedYear) {
+          final products = transaksiData['products'] as List<dynamic>?;
+          
+          if (products != null) {
+            for (var product in products) {
+              final productId = product['id']?.toString();
+              final quantity = (product['quantity'] ?? 0) as int;
+              
+              if (productId != null) {
+                productSales.update(
+                  productId,
+                  (value) => value + quantity,
+                  ifAbsent: () => quantity
+                );
+              }
+            }
+          }
         }
       }
 
-      tempProducts.add({
-        'id': produkId,
-        'nama': produkData['nama'] ?? 'No Name',
-        'stok': (produkData['stok'] as num).toInt(),
-        'harga': (produkData['harga'] as num).toInt(),
-        'status': produkData['status'] ?? 'Aktif',
-        'terjual': totalTerjual,
+      for (var doc in produkQuery.docs) {
+        final produkData = doc.data();
+        final produkId = doc.id;
+        final totalTerjual = productSales[produkId] ?? 0;
+
+        tempProducts.add({
+          'id': produkId,
+          'nama': produkData['namaProduk'] ?? 'No Name',
+          'stok': (produkData['stok'] ?? 0).toInt(),
+          'harga': (produkData['hargaJual'] ?? 0).toInt(),
+          'status': produkData['status'] ?? 'Aktif',
+          'terjual': totalTerjual,
+          'kategori': produkData['kategori'] ?? 'Umum',
+          'namaProduk': produkData['namaProduk'] ?? 'No Name',
+        });
+      }
+
+      // Kelompokkan produk berdasarkan kategori
+      Map<String, List<Map<String, dynamic>>> productsByCategory = {};
+      for (var product in tempProducts) {
+        final category = product['kategori'] ?? 'Umum';
+        if (!productsByCategory.containsKey(category)) {
+          productsByCategory[category] = [];
+        }
+        productsByCategory[category]!.add(product);
+      }
+
+      // Tentukan best seller per kategori
+      for (var category in productsByCategory.keys) {
+        final categoryProducts = productsByCategory[category]!;
+        if (categoryProducts.isNotEmpty) {
+          // Urutkan berdasarkan penjualan tertinggi
+          categoryProducts.sort((a, b) => (b['terjual'] ?? 0).compareTo(a['terjual'] ?? 0));
+          final maxSold = categoryProducts.first['terjual'] ?? 0;
+          
+          // Tandai sebagai best seller jika penjualan > 0
+          if (maxSold > 0) {
+            for (var product in categoryProducts) {
+              product['isBestSellerInCategory'] = product['terjual'] == maxSold;
+            }
+          }
+        }
+      }
+
+      // Gabungkan kembali semua produk
+      tempProducts = productsByCategory.values.expand((x) => x).toList();
+
+      setState(() {
+        products = tempProducts;
+        isLoading = false;
       });
+
+    } catch (e) {
+      print('Error fetching products: $e');
+      setState(() => isLoading = false);
     }
-
-    setState(() {
-      products = tempProducts;
-      isLoading = false;
-    });
-
-  } catch (e) {
-    print('Error fetching products: $e');
-    setState(() => isLoading = false);
   }
-}
 
   Widget _buildExportButton() {
     return Container(
@@ -183,20 +229,66 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
                   ),
                 )
               else
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: products.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
-                        child: _buildProductCard(context, products[index]),
-                      );
-                    },
-                  ),
-                ),
+                _buildProductList(),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildProductList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+
+    // Kelompokkan produk berdasarkan kategori
+    Map<String, List<Map<String, dynamic>>> groupedProducts = {};
+    for (var product in products) {
+      final category = product['kategori'] ?? 'Umum';
+      if (!groupedProducts.containsKey(category)) {
+        groupedProducts[category] = [];
+      }
+      groupedProducts[category]!.add(product);
+    }
+
+    return Expanded(
+      child: ListView(
+        children: [
+          for (var category in groupedProducts.keys)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16),
+                  child: Row(
+                    children: [
+                      Text(
+                        category,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF133E87),
+                        ),
+                      ),
+                      Spacer(),
+                      Text(
+                        '${groupedProducts[category]!.length} Produk',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ...groupedProducts[category]!.map((product) => Padding(
+                  padding: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
+                  child: _buildProductCard(context, product),
+                )).toList(),
+                SizedBox(height: 8),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -231,6 +323,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
             onChanged: (int? newValue) {
               setState(() {
                 selectedYear = newValue!;
+                isLoading = true;
               });
               _fetchProducts();
             },
@@ -312,15 +405,39 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           _buildStats(context, product),
           SizedBox(height: isSmallScreen ? 12 : 16),
           _buildProductDetail(context, product),
+          if (product['isBestSellerInCategory'] == true) ...[
+            SizedBox(height: isSmallScreen ? 8 : 12),
+            Container(
+              padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.star, color: Colors.amber, size: isSmallScreen ? 16 : 18),
+                  SizedBox(width: isSmallScreen ? 6 : 8),
+                  Expanded(
+                    child: Text(
+                      'Best Seller Kategori ${product['kategori']}',
+                      style: TextStyle(
+                        color: Colors.amber[800],
+                        fontSize: isSmallScreen ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildStats(BuildContext context, Map<String, dynamic> product) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    // ignore: unused_local_variable
-    final isSmallScreen = screenWidth < 360;
 
     return Row(
       children: [
@@ -416,41 +533,6 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  product['nama'],
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 14 : 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-              if (product['isBestSeller'])
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 6 : 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200], 
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Terlaris',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: isSmallScreen ? 10 : 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
-          ),
           SizedBox(height: isSmallScreen ? 8 : 12),
           _buildInfoRow(
             context,
@@ -467,37 +549,8 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           _buildInfoRow(
             context,
             Icons.category_outlined,
-            'Kategori: ${product['kategori']}',
+            'Kategori: ${product['kategori'] ?? 'Umum'}',
           ),
-          if (product['isBestSeller']) ...[
-            SizedBox(height: isSmallScreen ? 8 : 12),
-            Container(
-              padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-              decoration: BoxDecoration(
-                color: Color(0xFF133E87).withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.analytics_outlined,
-                    color: Color(0xFF133E87),
-                    size: isSmallScreen ? 16 : 18,
-                  ),
-                  SizedBox(width: isSmallScreen ? 6 : 8),
-                  Expanded(
-                    child: Text(
-                      'Paling laris di kategori ${product['kategori']}',
-                      style: TextStyle(
-                        color: Color(0xFF133E87),
-                        fontSize: isSmallScreen ? 12 : 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
