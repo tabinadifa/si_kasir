@@ -27,7 +27,7 @@ class RiwayatTransaksiScreen extends StatelessWidget {
         elevation: 0,
       ),
       body: Container(
-        color: Color(0xFFE9EEF5),
+        color: Colors.white,
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: isSmallScreen ? 12.0 : 20.0,
