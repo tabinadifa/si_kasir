@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class OmzetPertahunScreen extends StatefulWidget {
   const OmzetPertahunScreen({super.key});
@@ -9,18 +11,294 @@ class OmzetPertahunScreen extends StatefulWidget {
 }
 
 class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
-  final Map<String, List<double>> yearlyData = {
-    '2023': [9.0, 9.3, 8.7, 9.4, 9.1, 8.9, 9.5, 8.8, 9.2, 8.9, 9.1, 9.7],
-    '2024': [8.3, 9.2, 8.8, 9.5, 8.7, 9.0, 9.3, 8.9, 9.4, 9.1, 8.6, 9.6],
-    '2025': [8.8, 9.0, 8.5, 9.2, 8.9, 9.1, 9.4, 8.7, 9.3, 9.0, 8.8, 9.5],
-  };
+  // Data yang akan diisi dari Firestore
+  Map<String, List<double>> yearlyData = {};
+  Map<String, double> monthlyTotals = {};
+  
+  double totalOmzet = 0;
+  String highestMonth = '';
+  double highestMonthValue = 0;
+  String lowestMonth = '';
+  double lowestMonthValue = double.infinity;
 
   int selectedYear = DateTime.now().year;
   final int startYear = DateTime.now().year - 5;
   final int endYear = DateTime.now().year;
   int _touchedIndex = -1;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchOmzetData();
+  }
+
+  // Fungsi untuk mengambil dan menghitung data omzet dari Firestore
+  Future<void> fetchOmzetData() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      print('Fetching data for years $startYear to $endYear');
+      
+      // Mengambil data transaksi
+      final QuerySnapshot transactionSnapshot = await FirebaseFirestore.instance
+          .collection('transaksi')
+          .where('timestamp', isGreaterThanOrEqualTo: DateTime(startYear))
+          .where('timestamp', isLessThan: DateTime(endYear + 1))
+          .get();
+      
+      print('Found ${transactionSnapshot.docs.length} transactions');
+
+      // Map untuk menyimpan ID produk dan jumlah terjual per bulan dan tahun
+      Map<String, Map<String, Map<String, int>>> productQuantities = {};
+      
+      // Memproses data transaksi
+      for (var doc in transactionSnapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          
+          // Validasi field timestamp
+          if (!data.containsKey('timestamp') || data['timestamp'] == null) {
+            print('Document ${doc.id} has missing or null timestamp');
+            continue;
+          }
+          
+          final Timestamp timestamp = data['timestamp'] as Timestamp;
+          final DateTime date = timestamp.toDate();
+          final String year = date.year.toString();
+          final String month = (date.month - 1).toString(); // 0-based untuk array
+          
+          // Validasi field products
+          if (!data.containsKey('products') || data['products'] == null) {
+            print('Document ${doc.id} has missing or null products field');
+            continue;
+          }
+          
+          if (data['products'] is! List) {
+            print('Document ${doc.id} has products field that is not a List');
+            continue;
+          }
+          
+          if (!productQuantities.containsKey(year)) {
+            productQuantities[year] = {};
+          }
+          
+          if (!productQuantities[year]!.containsKey(month)) {
+            productQuantities[year]![month] = {};
+          }
+          
+          // Memproses array products dalam transaksi dengan handling null
+          final List<dynamic> products = data['products'] as List<dynamic>;
+          
+          for (var product in products) {
+            if (product == null || product is! Map<String, dynamic>) {
+              print('Document ${doc.id} has an invalid product entry (null or not a Map)');
+              continue;
+            }
+            
+            // Validasi field productId dan quantity
+            final String? productId = product['id']?.toString();
+            final int quantity = product['quantity'] is int ? product['quantity'] as int : 0;
+            
+            if (productId == null || productId.isEmpty) {
+              print('Document ${doc.id} has a product with null or empty productId');
+              continue;
+            }
+            
+            productQuantities[year]![month]![productId] = 
+                (productQuantities[year]![month]![productId] ?? 0) + quantity;
+          }
+        } catch (e) {
+          print('Error processing transaction document ${doc.id}: $e');
+        }
+      }
+      
+      // Mengambil data produk untuk harga
+      final QuerySnapshot productSnapshot = await FirebaseFirestore.instance
+          .collection('produk')
+          .get();
+      
+      print('Found ${productSnapshot.docs.length} products');
+      
+      Map<String, double> productPrices = {};
+      for (var doc in productSnapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          
+          if (!data.containsKey('hargaJual') || data['hargaJual'] == null) {
+            print('Product ${doc.id} has missing or null hargaJual');
+            continue;
+          }
+          
+          // Konversi aman untuk hargaJual
+          final dynamic rawPrice = data['hargaJual'];
+          double price = 0.0;
+          
+          if (rawPrice is int) {
+            price = rawPrice.toDouble();
+          } else if (rawPrice is double) {
+            price = rawPrice;
+          } else if (rawPrice is String) {
+            price = double.tryParse(rawPrice) ?? 0.0;
+          }
+          
+          productPrices[doc.id] = price;
+        } catch (e) {
+          print('Error processing product document ${doc.id}: $e');
+        }
+      }
+      
+      // Menghitung omzet per bulan dan tahun
+      yearlyData = {};
+      monthlyTotals = {};
+      
+      for (var year in productQuantities.keys) {
+        yearlyData[year] = List.generate(12, (index) => 0.0);
+        
+        for (var month in productQuantities[year]!.keys) {
+          double monthTotal = 0;
+          
+          for (var productId in productQuantities[year]![month]!.keys) {
+            final int quantity = productQuantities[year]![month]![productId]!;
+            final double price = productPrices[productId] ?? 0.0;
+            monthTotal += quantity * price;
+          }
+          
+          int monthIndex = int.parse(month);
+          yearlyData[year]![monthIndex] = monthTotal / 1000000; // Konversi ke juta
+          
+          String monthYearKey = '$month-$year';
+          monthlyTotals[monthYearKey] = monthTotal;
+        }
+      }
+      
+      // Debug print untuk melihat data yang berhasil diproses
+      yearlyData.forEach((year, data) {
+        print('Year $year data: $data');
+      });
+      
+      // Menghitung total omzet dan bulan tertinggi/terendah untuk tahun yang dipilih
+      updateStatistics();
+      
+    } catch (e, stackTrace) {
+      print('Error fetching data: $e');
+      print('Stack trace: $stackTrace');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  // Update statistik berdasarkan tahun yang dipilih
+  void updateStatistics() {
+    final String yearStr = selectedYear.toString();
+    final List<double> selectedYearData = yearlyData[yearStr] ?? List.generate(12, (index) => 0.0);
+    
+    totalOmzet = 0;
+    highestMonthValue = 0;
+    lowestMonthValue = double.infinity;
+    
+    final allMonths = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    
+    for (int i = 0; i < selectedYearData.length; i++) {
+      double monthValue = selectedYearData[i];
+      totalOmzet += monthValue;
+      
+      if (monthValue > highestMonthValue) {
+        highestMonthValue = monthValue;
+        highestMonth = allMonths[i];
+      }
+      
+      if (monthValue < lowestMonthValue && monthValue > 0) {
+        lowestMonthValue = monthValue;
+        lowestMonth = allMonths[i];
+      }
+    }
+    
+    // Jika tidak ada data terendah yang valid, gunakan nilai default
+    if (lowestMonthValue == double.infinity) {
+      lowestMonthValue = 0;
+      lowestMonth = 'Tidak ada data';
+    }
+  }
+
+  Future<void> insertSampleData() async {
+    try {
+      // Contoh produk
+      await FirebaseFirestore.instance.collection('produk').doc('prod1').set({
+        'nama': 'Produk 1',
+        'hargaJual': 100000,
+        'stok': 100
+      });
+      
+      await FirebaseFirestore.instance.collection('produk').doc('prod2').set({
+        'nama': 'Produk 2',
+        'hargaJual': 150000,
+        'stok': 75
+      });
+      
+      // Contoh transaksi untuk beberapa bulan
+      final currentYear = DateTime.now().year;
+      
+      // Transaksi bulan ini
+      await FirebaseFirestore.instance.collection('transaksi').add({
+        'timestamp': Timestamp.fromDate(DateTime(currentYear, DateTime.now().month, 15)),
+        'products': [
+          {'productId': 'prod1', 'quantity': 3},
+          {'productId': 'prod2', 'quantity': 2}
+        ],
+        'total': 600000
+      });
+      
+      // Transaksi bulan lalu
+      await FirebaseFirestore.instance.collection('transaksi').add({
+        'timestamp': Timestamp.fromDate(DateTime(currentYear, DateTime.now().month - 1, 15)),
+        'products': [
+          {'productId': 'prod1', 'quantity': 5},
+          {'productId': 'prod2', 'quantity': 1}
+        ],
+        'total': 650000
+      });
+      
+      // Tambahkan transaksi untuk beberapa bulan lain
+      for (int i = 2; i < 6; i++) {
+        await FirebaseFirestore.instance.collection('transaksi').add({
+          'timestamp': Timestamp.fromDate(DateTime(currentYear, DateTime.now().month - i, 15)),
+          'products': [
+            {'productId': 'prod1', 'quantity': i + 1},
+            {'productId': 'prod2', 'quantity': i}
+          ],
+          'total': (i + 1) * 100000 + i * 150000
+        });
+      }
+      
+      print('Sample data inserted successfully');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data contoh berhasil ditambahkan!'))
+      );
+      
+      // Ambil data setelah menambah data contoh
+      fetchOmzetData();
+      
+    } catch (e) {
+      print('Error inserting sample data: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'))
+      );
+    }
+  }
 
   Widget _buildBarChart(List<String> months, List<double> data) {
+    // Temukan nilai maksimum untuk Y axis
+    double maxY = data.isEmpty ? 10 : (data.reduce((a, b) => a > b ? a : b) * 1.2);
+    maxY = maxY < 10 ? 10 : maxY;
+    
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
@@ -79,7 +357,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    interval: 2,
+                    interval: maxY / 5,
                     getTitlesWidget: (value, meta) {
                       return Text(
                         '${value.toInt()}M',
@@ -99,7 +377,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
-                horizontalInterval: 2,
+                horizontalInterval: maxY / 5,
                 getDrawingHorizontalLine: (value) => FlLine(
                   color: Colors.grey[200],
                   strokeWidth: 1,
@@ -116,7 +394,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
                       borderRadius: BorderRadius.circular(4),
                       backDrawRodData: BackgroundBarChartRodData(
                         show: true,
-                        toY: 10,
+                        toY: maxY,
                         color: Colors.grey[100],
                       ),
                     ),
@@ -124,11 +402,11 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
                 );
               }),
               alignment: BarChartAlignment.spaceAround,
-              maxY: 10,
+              maxY: maxY,
               extraLinesData: ExtraLinesData(
                 horizontalLines: [
                   HorizontalLine(
-                    y: 10,
+                    y: maxY,
                     color: Colors.grey[300],
                     strokeWidth: 1,
                     dashArray: [8],
@@ -142,10 +420,10 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
     );
   }
 
-  LinearGradient get _barsGradient => LinearGradient(
+  LinearGradient get _barsGradient => const LinearGradient(
         colors: [
-          const Color(0xFF133E87),
-          const Color(0xFF4B7DD1),
+          Color(0xFF133E87),
+          Color(0xFF4B7DD1),
         ],
         begin: Alignment.bottomCenter,
         end: Alignment.topCenter,
@@ -207,35 +485,39 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
 
   Widget _buildYearDropdown() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Color(0xFF133E87),
+        color: const Color(0xFF133E87),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.calendar_today, color: Colors.white, size: 20),
               SizedBox(width: 10),
               Text('Tahun',
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold
+                  )),
             ],
           ),
           DropdownButton<int>(
             value: selectedYear,
-            dropdownColor: Color(0xFF133E87),
-            icon: Icon(Icons.arrow_drop_down, color: Colors.white),
-            underline: SizedBox(),
-            style: TextStyle(color: Colors.white, fontSize: 16),
+            dropdownColor: const Color(0xFF133E87),
+            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+            underline: const SizedBox(),
+            style: const TextStyle(color: Colors.white, fontSize: 16),
             onChanged: (int? newValue) {
-              setState(() {
-                selectedYear = newValue!;
-              });
+              if (newValue != null) {
+                setState(() {
+                  selectedYear = newValue;
+                  updateStatistics();
+                });
+              }
             },
             items: List.generate(
               endYear - startYear + 1,
@@ -243,7 +525,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
                 value: startYear + index,
                 child: Text(
                   (startYear + index).toString(),
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                 ),
               ),
             ),
@@ -254,26 +536,41 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
   }
 
   Widget _buildExportButton() {
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Center(
-          child: Text(
-            'Cetak Excel',
-            style: TextStyle(
-              color: Color(0xFF133E87),
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
+    return GestureDetector(
+      onTap: () {
+        // Implementasi fungsi cetak Excel
+        // Anda bisa menggunakan package seperti 'excel' untuk membuat file Excel
+      },
+      child: Container(
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Center(
+            child: Text(
+              'Cetak Excel',
+              style: TextStyle(
+                color: Color(0xFF133E87),
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  String formatCurrency(double amount) {
+    final formatter = NumberFormat.currency(
+      locale: 'id',
+      symbol: 'Rp',
+      decimalDigits: 0,
+    );
+    return formatter.format(amount * 1000000); // Konversi kembali dari juta ke nilai asli
   }
 
   @override
@@ -294,11 +591,14 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
     ];
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
 
+    final List<double> currentYearData = yearlyData[selectedYear.toString()] ?? 
+                                         List.generate(12, (index) => 0.0);
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
@@ -314,150 +614,191 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
             child: _buildExportButton(),
           ),
         ],
-        backgroundColor: Color(0xFF133E87),
+        backgroundColor: const Color(0xFF133E87),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildYearDropdown(),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 2,
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: SizedBox(
-                  height: 400,
-                  child: _buildBarChart(
-                      allMonths,
-                      yearlyData[selectedYear.toString()] ??
-                          List.generate(12, (index) => 0.0)),
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: isSmallScreen ? 12 : 16, vertical: 16),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.bar_chart,
-                          color: Color(0xFF133E87),
-                          size: 24,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Total Omset',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF133E87)))
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Tambahkan indikator status data
+                  if (yearlyData.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.amber[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Tidak ada data yang ditemukan',
+                            style: TextStyle(
+                              color: Colors.brown,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Rp71.800.000.000',
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF133E87),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Periksa koleksi "transaksi" dan "produk" di Firestore Anda. Pastikan field timestamp, products, dan hargaJual sudah ada dan benar.',
+                            style: TextStyle(color: Colors.brown),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: insertSampleData,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber[800],
+                            ),
+                            child: const Text('Tambah Data Contoh'),
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: isSmallScreen ? 20 : 24),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        return constraints.maxWidth < 600
-                            ? Column(
-                                children: [
-                                  _buildStatCard(
-                                    icon: Icons.trending_up,
-                                    iconColor: Colors.blue[700]!,
-                                    backgroundColor: Colors.blue[50]!,
-                                    title: 'Bulan tertinggi',
-                                    month: 'Juni',
-                                    amount: 'Rp10.800.000.000',
-                                    isSmallScreen: isSmallScreen,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  _buildStatCard(
-                                    icon: Icons.trending_down,
-                                    iconColor: Colors.red[700]!,
-                                    backgroundColor: Colors.red[50]!,
-                                    title: 'Bulan terendah',
-                                    month: 'Januari',
-                                    amount: 'Rp8.800.000.000',
-                                    isSmallScreen: isSmallScreen,
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      icon: Icons.trending_up,
-                                      iconColor: Colors.blue[700]!,
-                                      backgroundColor: Colors.blue[50]!,
-                                      title: 'Bulan tertinggi',
-                                      month: 'Juni',
-                                      amount: 'Rp10.800.000.000',
-                                      isSmallScreen: isSmallScreen,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      icon: Icons.trending_down,
-                                      iconColor: Colors.red[700]!,
-                                      backgroundColor: Colors.red[50]!,
-                                      title: 'Bulan terendah',
-                                      month: 'Januari',
-                                      amount: 'Rp8.800.000.000',
-                                      isSmallScreen: isSmallScreen,
-                                    ),
-                                  ),
-                                ],
-                              );
-                      },
+                    
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildYearDropdown(),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 2,
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: SizedBox(
+                        height: 400,
+                        child: _buildBarChart(allMonths, currentYearData),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: isSmallScreen ? 12 : 16, vertical: 16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.bar_chart,
+                                color: Color(0xFF133E87),
+                                size: 24,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Total Omset',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            formatCurrency(totalOmzet),
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 20 : 24,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF133E87),
+                            ),
+                          ),
+                          SizedBox(height: isSmallScreen ? 20 : 24),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              return constraints.maxWidth < 600
+                                  ? Column(
+                                      children: [
+                                        _buildStatCard(
+                                          icon: Icons.trending_up,
+                                          iconColor: Colors.blue[700]!,
+                                          backgroundColor: Colors.blue[50]!,
+                                          title: 'Bulan tertinggi',
+                                          month: highestMonth,
+                                          amount: formatCurrency(highestMonthValue),
+                                          isSmallScreen: isSmallScreen,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        _buildStatCard(
+                                          icon: Icons.trending_down,
+                                          iconColor: Colors.red[700]!,
+                                          backgroundColor: Colors.red[50]!,
+                                          title: 'Bulan terendah',
+                                          month: lowestMonth,
+                                          amount: formatCurrency(lowestMonthValue),
+                                          isSmallScreen: isSmallScreen,
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildStatCard(
+                                            icon: Icons.trending_up,
+                                            iconColor: Colors.blue[700]!,
+                                            backgroundColor: Colors.blue[50]!,
+                                            title: 'Bulan tertinggi',
+                                            month: highestMonth,
+                                            amount: formatCurrency(highestMonthValue),
+                                            isSmallScreen: isSmallScreen,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _buildStatCard(
+                                            icon: Icons.trending_down,
+                                            iconColor: Colors.red[700]!,
+                                            backgroundColor: Colors.red[50]!,
+                                            title: 'Bulan terendah',
+                                            month: lowestMonth,
+                                            amount: formatCurrency(lowestMonthValue),
+                                            isSmallScreen: isSmallScreen,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+      floatingActionButton: !isLoading && yearlyData.isEmpty
+          ? FloatingActionButton(
+              onPressed: insertSampleData,
+              backgroundColor: const Color(0xFF133E87),
+              child: const Icon(Icons.add_chart),
+            )
+          : null,
     );
   }
 }
@@ -468,6 +809,6 @@ void main() => runApp(MaterialApp(
         scaffoldBackgroundColor: Colors.grey[50],
         fontFamily: 'Inter',
       ),
-      home: OmzetPertahunScreen(),
+      home: const OmzetPertahunScreen(),
       debugShowCheckedModeBanner: false,
     ));
