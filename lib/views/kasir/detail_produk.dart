@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:si_kasir/views/kasir/daftar_produk.dart'; 
+import 'package:si_kasir/views/kasir/daftar_produk.dart';
 
 class DetailProdukScreen extends StatelessWidget {
   final Product product;
@@ -11,7 +11,7 @@ class DetailProdukScreen extends StatelessWidget {
     final Size screenSize = MediaQuery.of(context).size;
     final String imageUrl = "${product.imageUrl}";
     const Color primaryBlue = Color(0xFF133E87);
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -46,21 +46,56 @@ class DetailProdukScreen extends StatelessWidget {
                     onTap: () {
                       showDialog(
                         context: context,
-                        builder: (context) => Dialog(
-                          backgroundColor: Colors.transparent,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              imageUrl, 
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: screenSize.width * 0.8,
-                                  height: screenSize.height * 0.5,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
-                                );
-                              },
+                        barrierDismissible: true, // Mengaktifkan penutupan dengan tap di luar
+                        builder: (context) => GestureDetector(
+                          // Mengaktifkan penutupan dengan tap di area transparan
+                          onTap: () => Navigator.pop(context),
+                          child: Dialog(
+                            backgroundColor: Colors.transparent,
+                            insetPadding: EdgeInsets.zero,
+                            child: Container(
+                              width: double.infinity,
+                              height: double.infinity,
+                              color: Colors.transparent, // Transparan untuk mendeteksi tap di luar
+                              child: Stack(
+                                children: [
+                                  // Lapisan latar belakang semi-transparan
+                                  Positioned.fill(
+                                    child: Container(
+                                      color: Colors.black.withOpacity(0.7),
+                                    ),
+                                  ),
+                                  // Gambar full screen dengan InteractiveViewer
+                                  Center(
+                                    child: GestureDetector(
+                                      // Menghentikan event tap pada gambar agar tidak menutup dialog
+                                      onTap: (){ },
+                                      child: InteractiveViewer(
+                                        child: Image.network(
+                                          imageUrl,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.transparent,
+                                              child: const Icon(Icons.image_not_supported,
+                                                  size: 50, color: Colors.white),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  // Tombol tutup
+                                  Positioned(
+                                    top: 40,
+                                    right: 20,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                                      onPressed: () => Navigator.pop(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -78,7 +113,8 @@ class DetailProdukScreen extends StatelessWidget {
                             width: screenSize.width,
                             height: screenSize.height * 0.3,
                             color: Colors.grey[200],
-                            child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
+                            child: const Icon(Icons.image_not_supported,
+                                size: 50, color: Colors.grey),
                           );
                         },
                       ),
@@ -93,13 +129,13 @@ class DetailProdukScreen extends StatelessWidget {
                     height: 20,
                     decoration: const BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
                     ),
                   ),
                 ),
               ],
             ),
-            
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
@@ -113,7 +149,6 @@ class DetailProdukScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -150,7 +185,8 @@ class DetailProdukScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 12),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Harga Jual',
@@ -195,7 +231,8 @@ class DetailProdukScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 12),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Harga Beli',
@@ -221,7 +258,7 @@ class DetailProdukScreen extends StatelessWidget {
                           ),
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
-                        
+
                         // Deskripsi Produk
                         _buildDetailItem(
                           icon: Icons.description_outlined,
@@ -230,7 +267,7 @@ class DetailProdukScreen extends StatelessWidget {
                           showDivider: true,
                           iconColor: primaryBlue,
                         ),
-                        
+
                         // ID Produk
                         _buildDetailItem(
                           icon: Icons.tag_outlined,
@@ -239,7 +276,7 @@ class DetailProdukScreen extends StatelessWidget {
                           showDivider: true,
                           iconColor: primaryBlue,
                         ),
-                        
+
                         // Barcode
                         _buildDetailItem(
                           icon: Icons.qr_code,
@@ -248,7 +285,7 @@ class DetailProdukScreen extends StatelessWidget {
                           showDivider: true,
                           iconColor: primaryBlue,
                         ),
-                        
+
                         // Stok dan Kategori
                         Padding(
                           padding: const EdgeInsets.all(16),
@@ -271,7 +308,8 @@ class DetailProdukScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 12),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Stok',
@@ -315,7 +353,8 @@ class DetailProdukScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 12),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Kategori',
@@ -352,7 +391,7 @@ class DetailProdukScreen extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildDetailItem({
     required IconData icon,
     required String title,
@@ -394,10 +433,11 @@ class DetailProdukScreen extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       value,
-                      style: valueStyle ?? const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: valueStyle ??
+                          const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ],
                 ),
@@ -405,8 +445,7 @@ class DetailProdukScreen extends StatelessWidget {
             ],
           ),
         ),
-        if (showDivider)
-          const Divider(height: 1, indent: 16, endIndent: 16),
+        if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
   }
