@@ -22,12 +22,15 @@ class TransaksiScreen extends StatefulWidget {
 class _TransaksiScreenState extends State<TransaksiScreen> {
   String selectedMethod = '';
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController initialPaymentController = TextEditingController();
+  final TextEditingController initialPaymentController =
+      TextEditingController();
   final TextEditingController remainingDebtController = TextEditingController();
   final TextEditingController cashAmountController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   double? changeAmount;
   double? remainingDebt;
+  bool _isLoading = false; // Added loading state
+  String? qrisUrl;
 
   @override
   void dispose() {
@@ -68,75 +71,99 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     }
   }
 
+  // Added function for exact payment
+  void setExactPayment() {
+    setState(() {
+      cashAmountController.text = formatCurrency(widget.totalAmount);
+      changeAmount = 0;
+    });
+  }
+
   String generateTransactionId() {
     final random = Random();
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final randomString = List.generate(3, (index) => chars[random.nextInt(chars.length)]).join();
+    final randomString =
+        List.generate(3, (index) => chars[random.nextInt(chars.length)]).join();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     return 'TRX-$timestamp-$randomString';
   }
 
-  String? qrisUrl;
-
-Future<void> _loadUserEmailAndQRIS() async {
-  User? user = FirebaseAuth.instance.currentUser;
-  if (user != null) {
-    setState(() {
-      _emailController.text = user.email ?? '';
-    });
-
-    // Ambil URL QRIS dari Firestore
-    final tokoDoc = await FirebaseFirestore.instance
-        .collection('toko')
-        .where('email', isEqualTo: user.email)
-        .get();
-
-    if (tokoDoc.docs.isNotEmpty) {
-      final tokoData = tokoDoc.docs.first.data();
+  Future<void> _loadUserEmailAndQRIS() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
       setState(() {
-        qrisUrl = tokoData['qris_image']; // Asumsi field di Firestore bernama 'qrisUrl'
+        _emailController.text = user.email ?? '';
       });
+
+      // Ambil URL QRIS dari Firestore
+      final tokoDoc = await FirebaseFirestore.instance
+          .collection('toko')
+          .where('email', isEqualTo: user.email)
+          .get();
+
+      if (tokoDoc.docs.isNotEmpty) {
+        final tokoData = tokoDoc.docs.first.data();
+        setState(() {
+          qrisUrl = tokoData['qris_image'];
+        });
+      }
     }
   }
-}
 
-@override
-void initState() {
-  super.initState();
-  _loadUserEmailAndQRIS(); // Ganti _loadUserEmail dengan _loadUserEmailAndQRIS
-}
+  @override
+  void initState() {
+    super.initState();
+    _loadUserEmailAndQRIS();
+  }
 
   Future<void> saveTransactionToFirestore(String transactionId) async {
     final transactionData = {
-      'email': _emailController.text.isNotEmpty ? _emailController.text : 'tidak-diketahui@example.com',
+      'email': _emailController.text.isNotEmpty
+          ? _emailController.text
+          : 'tidak-diketahui@example.com',
       'transactionId': transactionId,
-      'products': widget.selectedProducts.isNotEmpty ? widget.selectedProducts : [],
+      'products':
+          widget.selectedProducts.isNotEmpty ? widget.selectedProducts : [],
       'totalAmount': widget.totalAmount,
-      'paymentMethod': selectedMethod.isNotEmpty ? selectedMethod : 'tidak-diketahui',
-      'customerName': nameController.text.isNotEmpty ? nameController.text : 'Tidak Diketahui',
+      'paymentMethod':
+          selectedMethod.isNotEmpty ? selectedMethod : 'tidak-diketahui',
+      'customerName': nameController.text.isNotEmpty
+          ? nameController.text
+          : 'Tidak Diketahui',
       'initialPayment': parseCurrency(initialPaymentController.text),
       'remainingDebt': remainingDebt ?? 0,
       'cashAmount': parseCurrency(cashAmountController.text),
       'changeAmount': changeAmount ?? 0,
       'timestamp': FieldValue.serverTimestamp(),
-      'status': (selectedMethod == 'langsung' || selectedMethod == 'non-tunai') ? 'Lunas' : 'Belum Lunas',
+      'status': (selectedMethod == 'langsung' || selectedMethod == 'non-tunai')
+          ? 'Lunas'
+          : 'Belum Lunas',
     };
 
     // Simpan transaksi ke Firestore
-    await FirebaseFirestore.instance.collection('transaksi').doc(transactionId).set(transactionData);
+    await FirebaseFirestore.instance
+        .collection('transaksi')
+        .doc(transactionId)
+        .set(transactionData);
 
     // Kurangi stok produk yang dibeli
     for (var product in widget.selectedProducts) {
       final productId = product['id'];
       final quantityPurchased = product['quantity'];
 
-      final productDoc = await FirebaseFirestore.instance.collection('produk').doc(productId).get();
+      final productDoc = await FirebaseFirestore.instance
+          .collection('produk')
+          .doc(productId)
+          .get();
 
       if (productDoc.exists) {
         final currentStock = productDoc.get('stok') ?? 0;
         final newStock = currentStock - quantityPurchased;
 
-        await FirebaseFirestore.instance.collection('produk').doc(productId).update({
+        await FirebaseFirestore.instance
+            .collection('produk')
+            .doc(productId)
+            .update({
           'stok': newStock,
         });
       }
@@ -186,9 +213,11 @@ void initState() {
                           side: const BorderSide(color: Color(0xFF133E87)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                              },
                         child: const Text(
                           'Batal',
                           style: TextStyle(
@@ -208,26 +237,40 @@ void initState() {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        onPressed: () async {
-                          final transactionId = generateTransactionId();
-                          await saveTransactionToFirestore(transactionId);
-                          Navigator.pop(context);
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => StrukScreen(
-                                transactionId: transactionId,
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                setState(() {
+                                  _isLoading = true;
+                                });
+                                final transactionId = generateTransactionId();
+                                await saveTransactionToFirestore(transactionId);
+                                Navigator.pop(context);
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StrukScreen(
+                                      transactionId: transactionId,
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'OK',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'OK',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
                       ),
                     ),
                   ],
@@ -240,44 +283,44 @@ void initState() {
     );
   }
 
-void _showFullScreenQRIS(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (context) => Dialog.fullscreen(
-      child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.pop(context),
+  void _showFullScreenQRIS(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: const Text('QRIS'),
           ),
-          title: const Text('QRIS'),
-        ),
-        body: Center(
-          child: qrisUrl != null
-              ? Image.network(
-                  qrisUrl!,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.error, color: Colors.red);
-                  },
-                )
-              : const Icon(Icons.image, color: Colors.grey),
+          body: Center(
+            child: qrisUrl != null
+                ? Image.network(
+                    qrisUrl!,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.error, color: Colors.red);
+                    },
+                  )
+                : const Icon(Icons.image, color: Colors.grey),
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget buildPaymentMethod(String title, String subtitle, String method) {
     bool isSelected = selectedMethod == method;
@@ -374,7 +417,6 @@ void _showFullScreenQRIS(BuildContext context) {
               labelStyle: TextStyle(color: Colors.grey[600]),
               prefixIcon:
                   const Icon(Icons.payments_outlined, color: Color(0xFF133E87)),
-              prefixText: 'Rp ',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
@@ -391,7 +433,31 @@ void _showFullScreenQRIS(BuildContext context) {
               fillColor: Colors.white,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
+          // Added "Uang Pas" button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                side: const BorderSide(color: Color(0xFF133E87)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () {
+                setExactPayment();
+              },
+              child: const Text(
+                'Uang Pas',
+                style: TextStyle(
+                  color: Color(0xFF133E87),
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           if (changeAmount != null)
             Container(
               padding: const EdgeInsets.all(12),
@@ -489,7 +555,6 @@ void _showFullScreenQRIS(BuildContext context) {
               labelStyle: TextStyle(color: Colors.grey[600]),
               prefixIcon:
                   const Icon(Icons.payments_outlined, color: Color(0xFF133E87)),
-              prefixText: 'Rp ',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
@@ -515,7 +580,6 @@ void _showFullScreenQRIS(BuildContext context) {
               labelStyle: TextStyle(color: Colors.grey[600]),
               prefixIcon: const Icon(Icons.account_balance_wallet_outlined,
                   color: Color(0xFF133E87)),
-              prefixText: 'Rp ',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
@@ -561,69 +625,69 @@ void _showFullScreenQRIS(BuildContext context) {
     );
   }
 
-Widget buildQRISSection() {
-  return Container(
-    margin: const EdgeInsets.symmetric(vertical: 16),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.grey[100],
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      children: [
-        GestureDetector(
-          onTap: () => _showFullScreenQRIS(context),
-          child: Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: qrisUrl != null
-                  ? Image.network(
-                      qrisUrl!,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.error, color: Colors.red);
-                      },
-                    )
-                  : const Icon(Icons.image, color: Colors.grey),
+  Widget buildQRISSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () => _showFullScreenQRIS(context),
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: qrisUrl != null
+                    ? Image.network(
+                        qrisUrl!,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.error, color: Colors.red);
+                        },
+                      )
+                    : const Icon(Icons.image, color: Colors.grey),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Ketuk QR Code untuk memperbesar',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.black54,
+          const SizedBox(height: 16),
+          const Text(
+            'Ketuk QR Code untuk memperbesar',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget buildSelectedPaymentContent() {
     switch (selectedMethod) {
@@ -757,7 +821,8 @@ Widget buildQRISSection() {
                         return buildOrderDetail(
                           product['name'],
                           '${formatCurrency(product['price'])} x ${product['quantity']}',
-                          formatCurrency(product['price'] * product['quantity']),
+                          formatCurrency(
+                              product['price'] * product['quantity']),
                         );
                       }).toList(),
                       const Divider(thickness: 1),
@@ -788,107 +853,123 @@ Widget buildQRISSection() {
                 ),
                 const Spacer(),
                 SafeArea(
-  child: Padding(
-    padding: EdgeInsets.fromLTRB(
-      16,
-      16,
-      16,
-      mediaQuery.viewInsets.bottom + 16,
-    ),
-    child: SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: selectedMethod.isEmpty
-              ? Colors.grey[400] // Warna abu-abu ketika tombol dinonaktifkan
-              : const Color(0xFF133E87), // Warna biru ketika tombol aktif
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-        onPressed: selectedMethod.isEmpty
-            ? null // Nonaktifkan tombol jika metode pembayaran belum dipilih
-            : () {
-                // Validation logic
-                if (selectedMethod.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Pilih metode pembayaran terlebih dahulu'),
-                      backgroundColor: Color(0xFF133E87),
-                      behavior: SnackBarBehavior.floating,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      mediaQuery.viewInsets.bottom + 16,
                     ),
-                  );
-                  return;
-                }
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: selectedMethod.isEmpty
+                              ? Colors.grey[400]
+                              : const Color(0xFF133E87),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        onPressed: _isLoading || selectedMethod.isEmpty
+                            ? null
+                            : () {
+                                // Validation logic
+                                if (selectedMethod.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Pilih metode pembayaran terlebih dahulu'),
+                                      backgroundColor: Color(0xFF133E87),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                  return;
+                                }
 
-                // Cash payment validation
-                if (selectedMethod == 'langsung') {
-                  if (cashAmountController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Masukkan jumlah uang'),
-                        backgroundColor: Color(0xFF133E87),
-                        behavior: SnackBarBehavior.floating,
+                                // Cash payment validation
+                                if (selectedMethod == 'langsung') {
+                                  if (cashAmountController.text.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Masukkan jumlah uang'),
+                                        backgroundColor: Color(0xFF133E87),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  double cashAmount =
+                                      parseCurrency(cashAmountController.text);
+                                  if (cashAmount < widget.totalAmount) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Jumlah uang kurang dari total belanja'),
+                                        backgroundColor: Color(0xFF133E87),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                // Debt payment validation
+                                if (selectedMethod == 'piutang') {
+                                  if (nameController.text.isEmpty ||
+                                      initialPaymentController.text.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Mohon lengkapi semua form piutang'),
+                                        backgroundColor: Color(0xFF133E87),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  double initialPayment = parseCurrency(
+                                      initialPaymentController.text);
+                                  if (initialPayment >= widget.totalAmount) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Pembayaran awal melebihi total belanja. Gunakan metode Bayar Langsung'),
+                                        backgroundColor: Color(0xFF133E87),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                // Show confirmation dialog
+                                _showConfirmationDialog();
+                              },
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Konfirmasi',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
-                    );
-                    return;
-                  }
-
-                  double cashAmount = parseCurrency(cashAmountController.text);
-                  if (cashAmount < widget.totalAmount) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Jumlah uang kurang dari total belanja'),
-                        backgroundColor: Color(0xFF133E87),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    return;
-                  }
-                }
-
-                // Debt payment validation
-                if (selectedMethod == 'piutang') {
-                  if (nameController.text.isEmpty || initialPaymentController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Mohon lengkapi semua form piutang'),
-                        backgroundColor: Color(0xFF133E87),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    return;
-                  }
-
-                  double initialPayment = parseCurrency(initialPaymentController.text);
-                  if (initialPayment >= widget.totalAmount) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Pembayaran awal melebihi total belanja. Gunakan metode Bayar Langsung'),
-                        backgroundColor: Color(0xFF133E87),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    return;
-                  }
-                }
-
-                // Show confirmation dialog
-                _showConfirmationDialog();
-              },
-        child: const Text(
-          'Konfirmasi',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    ),
-  ),
-),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -913,7 +994,8 @@ class CurrencyInputFormatter extends TextInputFormatter {
     // Format ke dalam format mata uang
     if (newText.isNotEmpty) {
       final value = int.parse(newText);
-      newText = 'Rp ${value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+      newText =
+          'Rp ${value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
     }
 
     return TextEditingValue(
