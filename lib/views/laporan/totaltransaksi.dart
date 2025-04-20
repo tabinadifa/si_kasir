@@ -45,7 +45,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     
     if (userEmail != null) {
       await _calculateTransaksi();
-      await _calculateProduk();
+      await _calculatePengeluaran();
       
       setState(() {
         isLoading = false;
@@ -54,47 +54,47 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   }
 
   Future<void> _calculateTransaksi() async {
-  print("Mengambil data transaksi untuk tahun $selectedYear");
+    print("Mengambil data transaksi untuk tahun $selectedYear");
 
-  double lunas = 0;
-  double hutang = 0;
+    double lunas = 0;
+    double hutang = 0;
 
-  DateTime startDate = DateTime(selectedYear, 1, 1);
-  DateTime endDate = DateTime(selectedYear, 12, 31, 23, 59, 59);
-  
-  Timestamp startTimestamp = Timestamp.fromDate(startDate);
-  Timestamp endTimestamp = Timestamp.fromDate(endDate);
+    DateTime startDate = DateTime(selectedYear, 1, 1);
+    DateTime endDate = DateTime(selectedYear, 12, 31, 23, 59, 59);
+    
+    Timestamp startTimestamp = Timestamp.fromDate(startDate);
+    Timestamp endTimestamp = Timestamp.fromDate(endDate);
 
-  try {
-    QuerySnapshot transaksiSnapshot = await _firestore
-        .collection('transaksi')
-        .where('email', isEqualTo: userEmail)
-        .where('timestamp', isGreaterThanOrEqualTo: startTimestamp)
-        .where('timestamp', isLessThanOrEqualTo: endTimestamp)
-        .get();
+    try {
+      QuerySnapshot transaksiSnapshot = await _firestore
+          .collection('transaksi')
+          .where('email', isEqualTo: userEmail)
+          .where('timestamp', isGreaterThanOrEqualTo: startTimestamp)
+          .where('timestamp', isLessThanOrEqualTo: endTimestamp)
+          .get();
 
-    for (var doc in transaksiSnapshot.docs) {
-      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+      for (var doc in transaksiSnapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-      if (data['status'] == 'Lunas') {
-        lunas += (data['totalAmount'] ?? 0).toDouble();
-      } else if (data['status'] == 'Belum Lunas') {
-        hutang += (data['remainingDebt'] ?? 0).toDouble();
+        if (data['status'] == 'Lunas') {
+          lunas += (data['totalAmount'] ?? 0).toDouble();
+        } else if (data['status'] == 'Belum Lunas') {
+          hutang += (data['totalAmount'] ?? 0).toDouble();
+        }
       }
+
+      setState(() {
+        totalLunas = lunas;
+        totalHutang = hutang;
+        // Total pendapatan diambil dari jumlah transaksi lunas dan hutang
+        totalPendapatan = totalLunas + totalHutang;
+      });
+    } catch (e) {
+      print("Error mengambil data transaksi: $e");
     }
-
-    setState(() {
-      totalLunas = lunas;
-      totalHutang = hutang;
-    });
-  } catch (e) {
-    print("Error mengambil data transaksi: $e");
   }
-}
 
-
-  Future<void> _calculateProduk() async {
-    double pendapatan = 0;
+  Future<void> _calculatePengeluaran() async {
     double pengeluaran = 0;
 
     // Menghitung tanggal awal dan akhir dari tahun yang dipilih
@@ -104,24 +104,53 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     Timestamp startTimestamp = Timestamp.fromDate(startDate);
     Timestamp endTimestamp = Timestamp.fromDate(endDate);
 
-    // Ambil data produk berdasarkan email pengguna dan tahun yang dipilih
-    QuerySnapshot produkSnapshot = await _firestore
-        .collection('produk')
-        .where('email', isEqualTo: userEmail)
-        .where('updatedAt', isGreaterThanOrEqualTo: startTimestamp)
-        .where('updatedAt', isLessThanOrEqualTo: endTimestamp)
-        .get();
+    try {
+      // 1. Hitung pengeluaran dari produk (hargaBeli * stok)
+      QuerySnapshot produkSnapshot = await _firestore
+          .collection('produk')
+          .where('email', isEqualTo: userEmail)
+          .where('updatedAt', isGreaterThanOrEqualTo: startTimestamp)
+          .where('updatedAt', isLessThanOrEqualTo: endTimestamp)
+          .get();
 
-    for (var doc in produkSnapshot.docs) {
-      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-      pendapatan += (data['hargaJual'] ?? 0).toDouble();
-      pengeluaran += (data['hargaBeli'] ?? 0).toDouble();
+      for (var doc in produkSnapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        double hargaBeli = (data['hargaBeli'] ?? 0).toDouble();
+        int stok = (data['stok'] ?? 0);
+        pengeluaran += hargaBeli * stok;
+      }
+
+      // 2. Hitung pengeluaran dari array products dalam transaksi
+      QuerySnapshot transaksiSnapshot = await _firestore
+          .collection('transaksi')
+          .where('email', isEqualTo: userEmail)
+          .where('timestamp', isGreaterThanOrEqualTo: startTimestamp)
+          .where('timestamp', isLessThanOrEqualTo: endTimestamp)
+          .get();
+
+      for (var doc in transaksiSnapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        
+        // Periksa apakah ada field products dan itu adalah array
+        if (data.containsKey('products') && data['products'] is List) {
+          List<dynamic> products = data['products'];
+          
+          for (var product in products) {
+            if (product is Map<String, dynamic>) {
+              double hargaBeli = (product['hargaBeli'] ?? 0).toDouble();
+              int quantity = (product['quantity'] ?? 0);
+              pengeluaran += hargaBeli * quantity;
+            }
+          }
+        }
+      }
+
+      setState(() {
+        totalPengeluaran = pengeluaran;
+      });
+    } catch (e) {
+      print("Error mengambil data pengeluaran: $e");
     }
-
-    setState(() {
-      totalPendapatan = pendapatan;
-      totalPengeluaran = pengeluaran;
-    });
   }
 
   // Fungsi untuk format uang
