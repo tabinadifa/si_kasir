@@ -38,7 +38,7 @@ class RiwayatTransaksiScreen extends StatelessWidget {
             children: [
               _buildTransactionOption(
                 context: context,
-                icon: Icons.attach_money,
+                icon: Icons.payments,
                 title: 'Transaksi Tunai',
                 onTap: () => Navigator.push(
                   context,
@@ -60,7 +60,7 @@ class RiwayatTransaksiScreen extends StatelessWidget {
               SizedBox(height: isSmallScreen ? 12 : 16),
               _buildTransactionOption(
                 context: context,
-                icon: Icons.trending_up,
+                icon: Icons.attach_money,
                 title: 'Kelola Piutang',
                 onTap: () => Navigator.push(
                   context,

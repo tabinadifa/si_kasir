@@ -23,23 +23,30 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String profileImageUrl = ''; 
-  bool isLoadingProfile = true; 
+  String profileImageUrl = '';
+  String shopName = ''; // Added variable to store shop name
+  bool isLoadingProfile = true;
   double totalSaldo = 0.0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // Daftar gambar untuk carousel
+  final List<String> bannerImages = [
+    'assets/produk/goodday.jpg',
+    'assets/produk/goodday.jpg',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadProfileData(); 
+    _loadProfileData();
     _loadSaldoData();
   }
 
   String formatCurrency(double amount) {
     final format = NumberFormat.currency(
-      locale: 'id_ID', 
-      symbol: 'Rp', 
-      decimalDigits: 0, 
+      locale: 'id_ID',
+      symbol: 'Rp',
+      decimalDigits: 0,
     );
     return format.format(amount);
   }
@@ -56,13 +63,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       final String emailUser = user.email!;
       final transaksiRef = FirebaseFirestore.instance.collection('transaksi');
-      final querySnapshot = await transaksiRef.where('email', isEqualTo: emailUser).get();
+      final querySnapshot =
+          await transaksiRef.where('email', isEqualTo: emailUser).get();
 
       double total = 0.0;
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
-        final paymentMethod = data['paymentMethod'] ?? 'tunai'; 
+        final paymentMethod = data['paymentMethod'] ?? 'tunai';
         final cashAmount = data['cashAmount'] ?? 0.0;
         final initialPayment = data['initialPayment'] ?? 0.0;
         final totalAmount = data['totalAmount'] ?? 0.0;
@@ -96,21 +104,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       final String emailUser = user.email!;
       final tokoRef = FirebaseFirestore.instance.collection('toko');
-      final querySnapshot = await tokoRef.where('email', isEqualTo: emailUser).get();
+      final querySnapshot =
+          await tokoRef.where('email', isEqualTo: emailUser).get();
 
       if (querySnapshot.docs.isNotEmpty) {
         final profileData = querySnapshot.docs.first.data();
         setState(() {
           profileImageUrl = profileData['profile_image'] ?? ''; // Ambil URL gambar profil
+          shopName = profileData['nama_toko'] ?? 'Toko Saya'; // Ambil nama toko dari Firestore
           isLoadingProfile = false;
         });
       } else {
         setState(() {
+          shopName = 'Toko Saya'; // Default value if no store data found
           isLoadingProfile = false;
         });
       }
     } catch (e) {
       setState(() {
+        shopName = 'Toko Saya'; // Default value in case of error
         isLoadingProfile = false;
       });
       // ignore: avoid_print
@@ -238,14 +250,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   fit: BoxFit.cover,
                                   width: isSmallScreen ? 50 : 60,
                                   height: isSmallScreen ? 50 : 60,
-                                  loadingBuilder: (context, child, loadingProgress) {
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
                                     if (loadingProgress == null) return child;
                                     return Center(
                                       child: CircularProgressIndicator(
-                                        value: loadingProgress.expectedTotalBytes !=
+                                        value: loadingProgress
+                                                    .expectedTotalBytes !=
                                                 null
-                                            ? loadingProgress.cumulativeBytesLoaded /
-                                                loadingProgress.expectedTotalBytes!
+                                            ? loadingProgress
+                                                    .cumulativeBytesLoaded /
+                                                loadingProgress
+                                                    .expectedTotalBytes!
                                             : null,
                                       ),
                                     );
@@ -316,79 +332,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           SizedBox(height: screenHeight * 0.02),
-          Container(
-            padding: EdgeInsets.all(screenWidth * 0.05),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF133E87), Color(0xFF1E56B1)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          SizedBox(
+            height: 140, // Fixed height for the banner container
+            width: screenWidth * 0.8, // Fixed width for the single box
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                // Optional: Add border or other styling for the container
+                border: Border.all(color: Colors.grey.shade300),
               ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Total Saldo',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: isSmallScreen ? 12 : 14),
-                    ),
-                    SizedBox(height: screenHeight * 0.01),
-                    Text(
-                      formatCurrency(totalSaldo), // Format total saldo
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                        MaterialPageRoute(
-                          builder: (context) => TotalTransaksiScreen(), 
-                        ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: PageView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: bannerImages.length,
+                  itemBuilder: (context, index) {
+                    return Image(
+                      image: AssetImage(bannerImages[index]),
+                      fit: BoxFit.cover,
                     );
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 12 : 20,
-                      vertical: isSmallScreen ? 8 : 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.account_balance_wallet,
-                        color: const Color(0xFF133E87),
-                      ),
-                      SizedBox(width: screenWidth * 0.02),
-                      Text(
-                        'Dompet',
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 12 : 14,
-                          color: const Color(0xFF133E87),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -401,6 +366,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
 
+    // Split title by newline if present
+    List<String> titleLines = title.split('\n');
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -409,7 +377,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              // ignore: deprecated_member_use
               color: Colors.grey.withOpacity(0.1),
               spreadRadius: 0,
               blurRadius: 10,
@@ -425,7 +392,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: EdgeInsets.all(screenWidth * 0.03),
                 decoration: BoxDecoration(
-                  // ignore: deprecated_member_use
                   color: const Color(0xFF133E87).withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -434,14 +400,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     size: isSmallScreen ? 28 : 32),
               ),
               SizedBox(height: screenWidth * 0.03),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 16,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF133E87),
-                ),
-                textAlign: TextAlign.center,
+              // Display title lines
+              Column(
+                children: titleLines
+                    .map((line) => Text(
+                          line,
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 14 : 16,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF133E87),
+                          ),
+                          textAlign: TextAlign.center,
+                        ))
+                    .toList(),
               ),
             ],
           ),
@@ -450,7 +421,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Build sidebar menu - IMPROVED
+  // Build sidebar menu
   Widget _buildSidebar() {
     return Drawer(
       elevation: 0,
@@ -490,56 +461,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: CircleAvatar(
                       backgroundColor: Colors.white,
                       radius: 45,
-                      child: isLoadingProfile 
-                        ? const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF133E87)),
-                          )
-                        : profileImageUrl.isNotEmpty
-                          ? ClipOval(
-                              child: Image.network(
-                                profileImageUrl,
-                                fit: BoxFit.cover,
-                                width: 90,
-                                height: 90,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Center(
-                                    child: CircularProgressIndicator(
-                                      color: const Color(0xFF133E87),
-                                      value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                        : null,
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.store,
-                                    color: Color(0xFF133E87),
-                                    size: 45,
-                                  );
-                                },
-                              ),
+                      child: isLoadingProfile
+                          ? const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF133E87)),
                             )
-                          : const Icon(
-                              Icons.store,
-                              color: Color(0xFF133E87),
-                              size: 45,
-                            ),
+                          : profileImageUrl.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.network(
+                                    profileImageUrl,
+                                    fit: BoxFit.cover,
+                                    width: 90,
+                                    height: 90,
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          color: const Color(0xFF133E87),
+                                          value: loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return const Icon(
+                                        Icons.store,
+                                        color: Color(0xFF133E87),
+                                        size: 45,
+                                      );
+                                    },
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.store,
+                                  color: Color(0xFF133E87),
+                                  size: 45,
+                                ),
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // App name with fading styling
-                  const Row(
+                  // Display shop name from Firestore
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'Masyallah Store',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                      Flexible(
+                        child: Text(
+                          shopName, // Display the fetched shop name
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -567,13 +549,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => DaftarProdukScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => DaftarProdukScreen()),
                       );
                     },
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Laporan Section
                   _buildSectionHeader('LAPORAN'),
                   _buildSidebarItem(
@@ -583,7 +566,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => LaporanScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => LaporanScreen()),
                       );
                     },
                   ),
@@ -594,7 +578,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => TotalTransaksiScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => TotalTransaksiScreen()),
                       );
                     },
                   ),
@@ -605,7 +590,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ProdukTerjualScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => ProdukTerjualScreen()),
                       );
                     },
                   ),
@@ -616,13 +602,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => OmzetPertahunScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => OmzetPertahunScreen()),
                       );
                     },
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Transaksi Section
                   _buildSectionHeader('TRANSAKSI'),
                   _buildSidebarItem(
@@ -632,7 +619,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => RiwayatTransaksiScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => RiwayatTransaksiScreen()),
                       );
                     },
                   ),
@@ -643,7 +631,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => TransaksiTunaiScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => TransaksiTunaiScreen()),
                       );
                     },
                   ),
@@ -654,7 +643,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => TransaksiNonTunaiScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => TransaksiNonTunaiScreen()),
                       );
                     },
                   ),
@@ -665,84 +655,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context); // Close drawer
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => DataPiutangScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => DataPiutangScreen()),
                       );
                     },
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Toko Section
                   _buildSectionHeader('TOKO'),
                   _buildSidebarItem(
-                    icon: Icons.store,
+                    icon: Icons.store_outlined,
                     title: 'Toko',
                     onTap: () async {
                       Navigator.pop(context); // Close drawer
                       await _navigateToToko(context);
                     },
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  const Divider(thickness: 1),
-                  const SizedBox(height: 8),
-                  
-                  // Help Center with special styling
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF133E87), Color(0xFF1E56B1)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.pop(context);
-                            _launchHelpCenter();
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.help_outline,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 16),
-                                const Text(
-                                  'Pusat Bantuan',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.arrow_forward_ios,
-                                    color: Colors.white,
-                                    size: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -765,7 +697,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               children: [
                 Image.asset(
-                  'assets/images/logo.png', // Asumsikan ada logo di assets
+                  'assets/icons/logo.png',
                   height: 24,
                   errorBuilder: (context, error, stackTrace) {
                     return const Icon(
@@ -829,7 +761,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Sidebar item builder - IMPROVED
+  // Sidebar item builder
   Widget _buildSidebarItem({
     required IconData icon,
     required String title,
@@ -857,7 +789,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    icon, 
+                    icon,
                     color: const Color(0xFF133E87),
                     size: 20,
                   ),
@@ -886,7 +818,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;

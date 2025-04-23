@@ -36,7 +36,7 @@ class LaporanScreen extends StatelessWidget {
           children: [
             LaporanCard(
               title: 'Total Transaksi',
-              icon: Icons.receipt_long,
+              icon: Icons.account_balance_wallet,
               onTap: () {
                 Navigator.push(
                   context,
@@ -47,7 +47,7 @@ class LaporanScreen extends StatelessWidget {
             ),
             LaporanCard(
               title: 'Produk Terjual',
-              icon: Icons.bar_chart,
+              icon: Icons.inventory,
               onTap: () {
                 Navigator.push(
                   context,
@@ -58,7 +58,7 @@ class LaporanScreen extends StatelessWidget {
             ),
             LaporanCard(
               title: 'Omzet Pertahun',
-              icon: Icons.show_chart,
+              icon: Icons.monetization_on,
               onTap: () {
                 Navigator.push(
                   context,

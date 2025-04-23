@@ -42,21 +42,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         MediaQuery.of(context).orientation == Orientation.portrait;
 
     return Scaffold(
-      // appBar: AppBar(
-      //   leading: IconButton(
-      //     icon: Icon(Icons.arrow_back_ios, color: Colors.white),
-      //     onPressed: () => Navigator.of(context).pop(),
-      //   ),
-      //   title: const Text(
-      //     'Data Piutang',
-      //     style: TextStyle(
-      //       color: Colors.white,
-      //       fontWeight: FontWeight.w600,
-      //     ),
-      //   ),
-      //   backgroundColor: Color(0xFF133E87),
-      //   elevation: 0,
-      // ),
       appBar: AppBar(
         title: Text(
           "Daftar Akun",
@@ -86,8 +71,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Center(
                 child: Image.asset(
                   'assets/icons/register.png',
-                  height: isPortrait ? screenHeight * 0.2 : screenHeight * 0.4,
-                  width: screenWidth * 0.6,
+                  height: isPortrait ? screenHeight * 0.3 : screenHeight * 0.5,
+                  width: screenWidth * 0.8,
                   fit: BoxFit.contain,
                 ),
               ),
