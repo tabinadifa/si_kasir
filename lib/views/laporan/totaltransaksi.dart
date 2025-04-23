@@ -1,6 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:excel/excel.dart' hide Border;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 
 class TotalTransaksiScreen extends StatefulWidget {
   @override
@@ -21,6 +26,11 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   String? userEmail;
   bool isLoading = true;
+  bool isExporting = false;
+
+  // Simpan data transaksi untuk ekspor
+  List<Map<String, dynamic>> transaksiData = [];
+  List<Map<String, dynamic>> pengeluaranData = [];
 
   @override
   void initState() {
@@ -41,6 +51,9 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   Future<void> _loadData() async {
     setState(() {
       isLoading = true;
+      // Reset data lists
+      transaksiData = [];
+      pengeluaranData = [];
     });
     
     if (userEmail != null) {
@@ -75,6 +88,17 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
 
       for (var doc in transaksiSnapshot.docs) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+
+        // Add to transaksiData for export
+        transaksiData.add({
+          'id': doc.id,
+          'tanggal': data['timestamp'] != null 
+              ? DateFormat('dd/MM/yyyy').format((data['timestamp'] as Timestamp).toDate()) 
+              : '-',
+          'pelanggan': data['customerName'] ?? '-',
+          'total': data['totalAmount'] ?? 0,
+          'status': data['status'] ?? '-',
+        });
 
         if (data['status'] == 'Lunas') {
           lunas += (data['totalAmount'] ?? 0).toDouble();
@@ -117,6 +141,19 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         double hargaBeli = (data['hargaBeli'] ?? 0).toDouble();
         int stok = (data['stok'] ?? 0);
+        
+        pengeluaranData.add({
+          'id': doc.id,
+          'nama': data['nama'] ?? '-',
+          'tanggal': data['updatedAt'] != null 
+              ? DateFormat('dd/MM/yyyy').format((data['updatedAt'] as Timestamp).toDate()) 
+              : '-',
+          'hargaBeli': hargaBeli,
+          'stok': stok,
+          'total': hargaBeli * stok,
+          'jenis': 'Produk',
+        });
+        
         pengeluaran += hargaBeli * stok;
       }
 
@@ -139,6 +176,19 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
             if (product is Map<String, dynamic>) {
               double hargaBeli = (product['hargaBeli'] ?? 0).toDouble();
               int quantity = (product['quantity'] ?? 0);
+              
+              pengeluaranData.add({
+                'id': doc.id,
+                'nama': product['nama'] ?? '-',
+                'tanggal': data['timestamp'] != null 
+                    ? DateFormat('dd/MM/yyyy').format((data['timestamp'] as Timestamp).toDate()) 
+                    : '-',
+                'hargaBeli': hargaBeli,
+                'stok': quantity,
+                'total': hargaBeli * quantity,
+                'jenis': 'Transaksi',
+              });
+              
               pengeluaran += hargaBeli * quantity;
             }
           }
@@ -161,23 +211,221 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
         )}';
   }
 
-  Widget _buildExportButton() {
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
+  // Fungsi untuk ekspor ke Excel
+  Future<void> _exportToExcel() async {
+    try {
+      setState(() {
+        isExporting = true;
+      });
+      
+      // Membuat objek Excel
+      final excel = Excel.createExcel();
+      
+      // Menghapus sheet default jika ada
+      if (excel.sheets.containsKey('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
+      // ===== Sheet Ringkasan =====
+      final sheetSummary = excel['Ringkasan'];
+      
+      // Judul
+      var titleCell = sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+      titleCell.value = TextCellValue('LAPORAN KEUANGAN TAHUN $selectedYear');
+      titleCell.cellStyle = CellStyle(bold: true);
+      
+      // Header Ringkasan
+      var headerCellKategori = sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2));
+      headerCellKategori.value = TextCellValue('Kategori');
+      headerCellKategori.cellStyle = CellStyle(bold: true);
+      
+      var headerCellJumlah = sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2));
+      headerCellJumlah.value = TextCellValue('Jumlah');
+      headerCellJumlah.cellStyle = CellStyle(bold: true);
+      
+      // Data Ringkasan
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3)).value = TextCellValue('Transaksi Lunas');
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3)).value = DoubleCellValue(totalLunas);
+      
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 4)).value = TextCellValue('Transaksi Hutang');
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 4)).value = DoubleCellValue(totalHutang);
+      
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 5)).value = TextCellValue('Total Pendapatan');
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 5)).value = DoubleCellValue(totalPendapatan);
+      
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 6)).value = TextCellValue('Total Pengeluaran');
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 6)).value = DoubleCellValue(totalPengeluaran);
+      
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 7)).value = TextCellValue('Laba Bersih');
+      sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 7)).value = DoubleCellValue(totalPendapatan - totalPengeluaran);
+      
+      // Menyesuaikan lebar kolom
+      sheetSummary.setColumnWidth(0, 20);
+      sheetSummary.setColumnWidth(1, 15);
+
+      // ===== Sheet Transaksi =====
+      if (transaksiData.isNotEmpty) {
+        final sheetTransaksi = excel['Transaksi'];
+        
+        // Header Transaksi
+        final headers = ['No', 'ID Transaksi', 'Tanggal', 'Nama Pelanggan', 'Total', 'Status'];
+        for (int i = 0; i < headers.length; i++) {
+          var headerCell = sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+          headerCell.value = TextCellValue(headers[i]);
+          headerCell.cellStyle = CellStyle(bold: true);
+        }
+        
+        // Data Transaksi
+        for (int i = 0; i < transaksiData.length; i++) {
+          final data = transaksiData[i];
+          sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i + 1)).value = IntCellValue(i + 1);
+          sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i + 1)).value = TextCellValue(data['id']);
+          sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i + 1)).value = TextCellValue(data['tanggal']);
+          sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i + 1)).value = TextCellValue(data['pelanggan']);
+          sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i + 1)).value = DoubleCellValue(data['total']);
+          sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i + 1)).value = TextCellValue(data['status']);
+        }
+        
+        // Menyesuaikan lebar kolom
+        sheetTransaksi.setColumnWidth(0, 5);
+        sheetTransaksi.setColumnWidth(1, 15);
+        sheetTransaksi.setColumnWidth(2, 12);
+        sheetTransaksi.setColumnWidth(3, 25);
+        sheetTransaksi.setColumnWidth(4, 15);
+        sheetTransaksi.setColumnWidth(5, 12);
+      }
+      
+      // ===== Sheet Pengeluaran =====
+      if (pengeluaranData.isNotEmpty) {
+        final sheetPengeluaran = excel['Pengeluaran'];
+        
+        // Header Pengeluaran
+        final headers = ['No', 'ID', 'Nama Item', 'Tanggal', 'Harga Beli', 'Jumlah', 'Total', 'Jenis'];
+        for (int i = 0; i < headers.length; i++) {
+          var headerCell = sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+          headerCell.value = TextCellValue(headers[i]);
+          headerCell.cellStyle = CellStyle(bold: true);
+        }
+        
+        // Data Pengeluaran
+        for (int i = 0; i < pengeluaranData.length; i++) {
+          final data = pengeluaranData[i];
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i + 1)).value = IntCellValue(i + 1);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i + 1)).value = TextCellValue(data['id']);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i + 1)).value = TextCellValue(data['nama']);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i + 1)).value = TextCellValue(data['tanggal']);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i + 1)).value = DoubleCellValue(data['hargaBeli']);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i + 1)).value = IntCellValue(data['stok']);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i + 1)).value = DoubleCellValue(data['total']);
+          sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: i + 1)).value = TextCellValue(data['jenis']);
+        }
+        
+        // Menyesuaikan lebar kolom
+        sheetPengeluaran.setColumnWidth(0, 5);
+        sheetPengeluaran.setColumnWidth(1, 15);
+        sheetPengeluaran.setColumnWidth(2, 25);
+        sheetPengeluaran.setColumnWidth(3, 12);
+        sheetPengeluaran.setColumnWidth(4, 15);
+        sheetPengeluaran.setColumnWidth(5, 10);
+        sheetPengeluaran.setColumnWidth(6, 15);
+        sheetPengeluaran.setColumnWidth(7, 12);
+      }
+      
+      // Save and share the file
+      await _saveAndShareExcel(excel);
+      
+      setState(() {
+        isExporting = false;
+      });
+    } catch (e) {
+      print("Error exporting to Excel: $e");
+      _showErrorDialog("Terjadi kesalahan saat mengekspor data ke Excel: $e");
+      setState(() {
+        isExporting = false;
+      });
+    }
+  }
+
+  Future<void> _saveAndShareExcel(Excel excel) async {
+    try {
+      // Nama file dengan format: Laporan_Keuangan_TAHUN_DDMMYYYY_HHMMSS.xlsx
+      final now = DateTime.now();
+      final formattedDate = DateFormat('ddMMyyyy_HHmmss').format(now);
+      final fileName = 'Laporan_Keuangan_${selectedYear}_$formattedDate.xlsx';
+      
+      // Get temporary directory
+      Directory tempDir = await getTemporaryDirectory();
+      String tempPath = tempDir.path;
+      String filePath = '$tempPath/$fileName';
+      
+      // Encode Excel file
+      List<int>? excelBytes = excel.encode();
+      if (excelBytes == null) {
+        throw Exception("Failed to encode Excel file");
+      }
+      
+      // Write to file
+      File(filePath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(excelBytes);
+      
+      // Share file
+      await Share.shareXFiles(
+        [XFile(filePath)],
+        text: 'Laporan Keuangan Tahun $selectedYear',
+      );
+      
+    } catch (e) {
+      print("Error saving Excel file: $e");
+      _showErrorDialog("Terjadi kesalahan saat menyimpan file Excel: $e");
+    }
+  }
+  
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Center(
-          child: Text(
-            'Cetak Excel',
-            style: TextStyle(
-              color: Color(0xFF133E87),
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
+    );
+  }
+
+  Widget _buildExportButton() {
+    return GestureDetector(
+      onTap: (isLoading || isExporting) ? null : _exportToExcel,
+      child: Container(
+        height: 36,
+        decoration: BoxDecoration(
+          color: (isLoading || isExporting) ? Colors.grey[300] : Colors.white,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Center(
+            child: isExporting
+              ? SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF133E87),
+                    strokeWidth: 2,
+                  ),
+                )
+              : Text(
+                  'Cetak Excel',
+                  style: TextStyle(
+                    color: (isLoading || isExporting) ? Colors.grey[600] : Color(0xFF133E87),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
           ),
         ),
       ),
