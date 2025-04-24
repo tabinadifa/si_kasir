@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 class TotalTransaksiScreen extends StatefulWidget {
@@ -328,7 +327,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
         sheetPengeluaran.setColumnWidth(7, 12);
       }
       
-      await _saveAndShareExcel(excel);
+      await _saveToLocalStorage(excel);
       
       setState(() {
         isExporting = false;
@@ -342,50 +341,57 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     }
   }
 
-  Future<void> _saveAndShareExcel(Excel excel) async {
+  Future<void> _saveToLocalStorage(Excel excel) async {
+  try {
+    // Get downloads directory (or documents directory if downloads is not available)
+    Directory? directory;
     try {
-      // Test plugin availability
-      try {
-        await Directory.systemTemp;
-      } catch (e) {
-        throw Exception('Plugin path_provider tidak tersedia: $e');
+      if (Platform.isAndroid) {
+        directory = await getExternalStorageDirectory();
+        String newPath = '';
+        List<String> paths = directory!.path.split('/');
+        for (int x = 1; x < paths.length; x++) {
+          String folder = paths[x];
+          if (folder != 'Android') {
+            newPath += '/$folder';
+          } else {
+            break;
+          }
+        }
+        newPath = '$newPath/Download';
+        directory = Directory(newPath);
+      } else if (Platform.isIOS) {
+        directory = await getApplicationDocumentsDirectory();
       }
-
-      final now = DateTime.now();
-      final fileName = 'Laporan_${selectedYear}_${now.millisecondsSinceEpoch}.xlsx';
       
-      Directory? tempDir;
-      try {
-        tempDir = await getTemporaryDirectory();
-      } on MissingPluginException {
-        tempDir = Directory.systemTemp;
+      if (!await directory!.exists()) {
+        directory = await getApplicationDocumentsDirectory();
       }
-
-      final filePath = '${tempDir.path}/$fileName';
-      final file = File(filePath);
-      
-      final excelBytes = excel.encode();
-      if (excelBytes == null) {
-        throw Exception('Gagal mengencode Excel');
-      }
-
-      await file.writeAsBytes(excelBytes, flush: true);
-
-      try {
-        await Share.shareXFiles(
-          [XFile(filePath)],
-          text: 'Laporan Keuangan $selectedYear',
-        );
-      } catch (e) {
-        _showSuccessDialog('File tersimpan di: $filePath');
-      }
-
-    } on MissingPluginException catch (e) {
-      _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
     } catch (e) {
-      _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
+      directory = await getApplicationDocumentsDirectory();
     }
+
+    // ignore: unused_local_variable
+    final now = DateTime.now();
+    final fileName = 'Laporan_Keuangan_$selectedYear.xlsx';
+    final filePath = '${directory.path}/$fileName';
+    
+    final excelBytes = excel.encode();
+    if (excelBytes == null) {
+      throw Exception('Gagal mengencode Excel');
+    }
+
+    final file = File(filePath);
+    await file.writeAsBytes(excelBytes, flush: true);
+    
+    _showSuccessDialog('Laporan berhasil disimpan di:\n$filePath');
+    
+  } on MissingPluginException catch (e) {
+    _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
+  } catch (e) {
+    _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
   }
+}
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -404,20 +410,28 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   }
 
   void _showSuccessDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sukses'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Sukses'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('OK'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            // Buka file jika diperlukan
+            // final result = await OpenFile.open(filePath);
+          },
+          child: const Text('Buka File'),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildExportButton() {
     return GestureDetector(
