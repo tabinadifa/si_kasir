@@ -24,12 +24,11 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String profileImageUrl = '';
-  String shopName = ''; // Added variable to store shop name
+  String shopName = '';
   bool isLoadingProfile = true;
   double totalSaldo = 0.0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Daftar gambar untuk carousel
   final List<String> bannerImages = [
     'assets/produk/goodday.jpg',
     'assets/produk/goodday.jpg',
@@ -110,23 +109,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (querySnapshot.docs.isNotEmpty) {
         final profileData = querySnapshot.docs.first.data();
         setState(() {
-          profileImageUrl = profileData['profile_image'] ?? ''; // Ambil URL gambar profil
-          shopName = profileData['nama_toko'] ?? 'Toko Saya'; // Ambil nama toko dari Firestore
+          profileImageUrl = profileData['profile_image'] ?? '';
+          shopName = profileData['nama_toko'] ?? 'Toko Saya';
           isLoadingProfile = false;
         });
       } else {
         setState(() {
-          shopName = 'Toko Saya'; // Default value if no store data found
+          shopName = 'Toko Saya';
           isLoadingProfile = false;
         });
       }
     } catch (e) {
       setState(() {
-        shopName = 'Toko Saya'; // Default value in case of error
+        shopName = 'Toko Saya';
         isLoadingProfile = false;
       });
-      // ignore: avoid_print
       print('Error loading profile data: $e');
+    }
+  }
+
+  Future<void> _refreshData() async {
+    try {
+      setState(() {
+        isLoadingProfile = true;
+      });
+
+      await Future.wait([
+        _loadProfileData(),
+        _loadSaldoData(),
+      ]);
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      setState(() {
+        isLoadingProfile = false;
+      });
+
+    } catch (e) {
+      setState(() {
+        isLoadingProfile = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat ulang data: $e')),
+      );
     }
   }
 
@@ -138,7 +163,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         throw Exception('Could not launch $url');
       }
     } catch (e) {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tidak dapat membuka link')),
       );
@@ -157,7 +181,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       final String emailUser = user.email!;
-      // ignore: avoid_print
       print('Email Pengguna: $emailUser');
 
       final tokoRef = FirebaseFirestore.instance.collection('toko');
@@ -165,30 +188,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           await tokoRef.where('email', isEqualTo: emailUser).get();
 
       final bool tokoAda = querySnapshot.docs.isNotEmpty;
-      // ignore: avoid_print
       print('Dokumen ditemukan: $tokoAda');
 
       if (tokoAda) {
-        // ignore: avoid_print
         print('Navigasi ke TokoScreen');
         Navigator.push(
-          // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(builder: (context) => TokoScreen()),
         );
       } else {
-        // ignore: avoid_print
         print('Navigasi ke TambahTokoScreen');
         Navigator.push(
-          // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(builder: (context) => TambahTokoScreen()),
         );
       }
     } catch (e) {
-      // ignore: avoid_print
       print('Error: $e');
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Terjadi kesalahan: $e')),
       );
@@ -333,12 +349,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           SizedBox(height: screenHeight * 0.02),
           SizedBox(
-            height: 140, // Fixed height for the banner container
-            width: screenWidth * 0.8, // Fixed width for the single box
+            height: 140,
+            width: screenWidth * 0.8,
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                // Optional: Add border or other styling for the container
                 border: Border.all(color: Colors.grey.shade300),
               ),
               child: ClipRRect(
@@ -366,7 +381,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
 
-    // Split title by newline if present
     List<String> titleLines = title.split('\n');
 
     return GestureDetector(
@@ -400,7 +414,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     size: isSmallScreen ? 28 : 32),
               ),
               SizedBox(height: screenWidth * 0.03),
-              // Display title lines
               Column(
                 children: titleLines
                     .map((line) => Text(
@@ -421,14 +434,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Build sidebar menu
   Widget _buildSidebar() {
     return Drawer(
       elevation: 0,
       backgroundColor: Colors.white,
       child: Column(
         children: [
-          // Header gradient container with profile
           Container(
             height: 200,
             width: double.infinity,
@@ -446,7 +457,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Profile image with animated container
                   Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -507,13 +517,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // Display shop name from Firestore
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Flexible(
                         child: Text(
-                          shopName, // Display the fetched shop name
+                          shopName,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -532,7 +541,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          // Scrollable menu items
           Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -540,13 +548,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Kasir Section
                   _buildSectionHeader('KASIR'),
                   _buildSidebarItem(
                     icon: Icons.shopping_cart_outlined,
                     title: 'Daftar Produk',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -557,13 +564,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Laporan Section
                   _buildSectionHeader('LAPORAN'),
                   _buildSidebarItem(
                     icon: Icons.receipt_long,
                     title: 'Laporan',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -575,7 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.account_balance_wallet,
                     title: 'Total Transaksi',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -587,7 +593,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.inventory,
                     title: 'Produk Terjual',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -599,7 +605,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.monetization_on,
                     title: 'Omzet Pertahun',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -610,13 +616,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Transaksi Section
                   _buildSectionHeader('TRANSAKSI'),
                   _buildSidebarItem(
                     icon: Icons.history,
                     title: 'Riwayat Transaksi',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -628,7 +633,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.payments,
                     title: 'Transaksi Tunai',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -640,7 +645,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.credit_card,
                     title: 'Transaksi Non Tunai',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -652,7 +657,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.attach_money,
                     title: 'Kelola Piutang',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -663,13 +668,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Toko Section
                   _buildSectionHeader('TOKO'),
                   _buildSidebarItem(
                     icon: Icons.store_outlined,
                     title: 'Toko',
                     onTap: () async {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       await _navigateToToko(context);
                     },
                   ),
@@ -679,7 +683,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-          // Footer with version info
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -732,7 +735,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Section header builder
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 16, top: 8, bottom: 12),
@@ -761,7 +763,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Sidebar item builder
   Widget _buildSidebarItem({
     required IconData icon,
     required String title,
@@ -846,12 +847,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       drawer: _buildSidebar(),
       backgroundColor: const Color(0xFFF5F7FA),
       body: RefreshIndicator(
-        onRefresh: () async {
-          // Panggil fungsi refresh untuk memuat ulang data
-          await _loadProfileData();
-          await _loadSaldoData();
-        },
+        onRefresh: _refreshData,
+        color: const Color(0xFF133E87),
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
