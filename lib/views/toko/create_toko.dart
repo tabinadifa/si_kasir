@@ -151,7 +151,7 @@ class _TambahTokoScreenState extends State<TambahTokoScreen> {
           resourceType: CloudinaryResourceType.Image,
         ),
       );
-      // Return the complete URL instead of just the public ID
+      
       return response.secureUrl;
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,11 +182,15 @@ class _TambahTokoScreenState extends State<TambahTokoScreen> {
       try {
         // Upload images to Cloudinary if they exist
         if (_profileImage != null) {
+          // Upload ke folder profile_images
           _profileImageUrl = await _uploadToCloudinary(_profileImage!, 'profile_images');
+          print('Profile image URL: $_profileImageUrl');
         }
         
         if (_qrisImage != null) {
+          // Upload ke folder qris_images
           _qrisImageUrl = await _uploadToCloudinary(_qrisImage!, 'qris_images');
+          print('QRIS image URL: $_qrisImageUrl');
         }
 
         // Save data to Firestore
@@ -194,10 +198,16 @@ class _TambahTokoScreenState extends State<TambahTokoScreen> {
           'nama_toko': _namaTokoController.text,
           'phone': _phoneController.text,
           'email': _emailController.text,
-          'profileImageUrl': _profileImageUrl ?? '', // Store complete URL
-          'qrisImageUrl': _qrisImageUrl ?? '', // Store complete URL
+          'profileImageUrl': _profileImageUrl ?? '', // Menyimpan URL lengkap dari Cloudinary
+          'qrisImageUrl': _qrisImageUrl ?? '', // Menyimpan URL lengkap dari Cloudinary
           'createdAt': FieldValue.serverTimestamp(),
         };
+
+        // Log data yang akan disimpan
+        print('Data yang akan disimpan ke Firestore:');
+        tokoData.forEach((key, value) {
+          print('$key: $value');
+        });
 
         await FirebaseFirestore.instance.collection('toko').add(tokoData);
 
