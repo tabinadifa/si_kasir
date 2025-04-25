@@ -198,8 +198,8 @@ class _TambahTokoScreenState extends State<TambahTokoScreen> {
           'nama_toko': _namaTokoController.text,
           'phone': _phoneController.text,
           'email': _emailController.text,
-          'profileImageUrl': _profileImageUrl ?? '', // Menyimpan URL lengkap dari Cloudinary
-          'qrisImageUrl': _qrisImageUrl ?? '', // Menyimpan URL lengkap dari Cloudinary
+          'profile_image': _profileImageUrl ?? '', // Menyimpan URL lengkap dari Cloudinary
+          'qris_image': _qrisImageUrl ?? '', // Menyimpan URL lengkap dari Cloudinary
           'createdAt': FieldValue.serverTimestamp(),
         };
 
