@@ -384,7 +384,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     final file = File(filePath);
     await file.writeAsBytes(excelBytes, flush: true);
     
-    _showSuccessDialog('Laporan berhasil disimpan di:\n$filePath');
+    _showSuccessDialog('Laporan berhasil disimpan');
     
   } on MissingPluginException catch (e) {
     _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
