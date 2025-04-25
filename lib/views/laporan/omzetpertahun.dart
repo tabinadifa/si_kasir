@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:excel/excel.dart' hide Border;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
 
 class OmzetPertahunScreen extends StatefulWidget {
   const OmzetPertahunScreen({super.key});
@@ -26,6 +31,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
   final int endYear = DateTime.now().year;
   int _touchedIndex = -1;
   bool isLoading = true;
+  bool isExporting = false;
 
   @override
   void initState() {
@@ -228,6 +234,124 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
     }
   }
 
+  // Fungsi untuk mengekspor data ke Excel
+  Future<void> exportToExcel() async {
+  setState(() {
+    isExporting = true;
+  });
+
+  try {
+    final excel = Excel.createExcel();
+    final sheet = excel['Omzet Tahun $selectedYear'];
+
+    final allMonths = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).value = TextCellValue('Bulan');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0)).value = TextCellValue('Omzet (Rp)');
+
+    final headerStyle = CellStyle(
+      backgroundColorHex: ExcelColor.fromHexString('FF133E87'),
+      fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),
+      bold: true,
+      horizontalAlign: HorizontalAlign.Center,
+    );
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).cellStyle = headerStyle;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0)).cellStyle = headerStyle;
+
+    final List<double> currentYearData = yearlyData[selectedYear.toString()] ??
+        List.generate(12, (index) => 0.0);
+
+    for (int i = 0; i < allMonths.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i + 1)).value = TextCellValue(allMonths[i]);
+
+      final double omzetValue = currentYearData[i] * 1000000;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i + 1)).value = DoubleCellValue(omzetValue);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i + 1)).cellStyle =
+          CellStyle(numberFormat: NumFormat.standard_0);
+    }
+
+    final totalRow = allMonths.length + 2;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow)).value = TextCellValue('TOTAL');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow)).cellStyle =
+        CellStyle(bold: true);
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow)).value =
+        DoubleCellValue(totalOmzet * 1000000);
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow)).cellStyle =
+        CellStyle(bold: true, numberFormat: NumFormat.standard_0);
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow + 2)).value =
+        TextCellValue('Bulan dengan omzet tertinggi');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow + 2)).value =
+        TextCellValue(highestMonth);
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow + 3)).value =
+        TextCellValue('Omzet tertinggi');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow + 3)).value =
+        DoubleCellValue(highestMonthValue * 1000000);
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow + 3)).cellStyle =
+        CellStyle(numberFormat: NumFormat.standard_0);
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow + 5)).value =
+        TextCellValue('Bulan dengan omzet terendah');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow + 5)).value =
+        TextCellValue(lowestMonth);
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow + 6)).value =
+        TextCellValue('Omzet terendah');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow + 6)).value =
+        DoubleCellValue(lowestMonthValue * 1000000);
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: totalRow + 6)).cellStyle =
+        CellStyle(numberFormat: NumFormat.standard_0);
+
+    sheet.setColumnWidth(0, 25);
+    sheet.setColumnWidth(1, 20);
+
+    final fileName = 'Omzet_Tahun_$selectedYear.xlsx';
+
+    if (Platform.isAndroid) {
+      final status = await Permission.storage.request();
+      if (!status.isGranted) {
+        throw Exception('Permission denied');
+      }
+    }
+
+    final directory = await getApplicationDocumentsDirectory();
+    final path = '${directory.path}/$fileName';
+
+    final fileBytes = excel.encode();
+    if (fileBytes != null) {
+      final file = File(path);
+      await file.writeAsBytes(fileBytes);
+
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: 'Data Omzet Tahun $selectedYear',
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('File Excel berhasil disimpan: $path')),
+      );
+    } else {
+      throw Exception('Failed to generate Excel file');
+    }
+  } catch (e) {
+    print('Error exporting to Excel: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: Gagal mengekspor data. ${e.toString()}')),
+    );
+  } finally {
+    setState(() {
+      isExporting = false;
+    });
+  }
+}
+
+
   Future<void> insertSampleData() async {
     try {
       // Contoh produk
@@ -250,8 +374,8 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
       await FirebaseFirestore.instance.collection('transaksi').add({
         'timestamp': Timestamp.fromDate(DateTime(currentYear, DateTime.now().month, 15)),
         'products': [
-          {'productId': 'prod1', 'quantity': 3},
-          {'productId': 'prod2', 'quantity': 2}
+          {'id': 'prod1', 'quantity': 3},
+          {'id': 'prod2', 'quantity': 2}
         ],
         'total': 600000
       });
@@ -260,8 +384,8 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
       await FirebaseFirestore.instance.collection('transaksi').add({
         'timestamp': Timestamp.fromDate(DateTime(currentYear, DateTime.now().month - 1, 15)),
         'products': [
-          {'productId': 'prod1', 'quantity': 5},
-          {'productId': 'prod2', 'quantity': 1}
+          {'id': 'prod1', 'quantity': 5},
+          {'id': 'prod2', 'quantity': 1}
         ],
         'total': 650000
       });
@@ -271,8 +395,8 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
         await FirebaseFirestore.instance.collection('transaksi').add({
           'timestamp': Timestamp.fromDate(DateTime(currentYear, DateTime.now().month - i, 15)),
           'products': [
-            {'productId': 'prod1', 'quantity': i + 1},
-            {'productId': 'prod2', 'quantity': i}
+            {'id': 'prod1', 'quantity': i + 1},
+            {'id': 'prod2', 'quantity': i}
           ],
           'total': (i + 1) * 100000 + i * 150000
         });
@@ -537,27 +661,53 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
 
   Widget _buildExportButton() {
     return GestureDetector(
-      onTap: () {
-        // Implementasi fungsi cetak Excel
-        // Anda bisa menggunakan package seperti 'excel' untuk membuat file Excel
-      },
+      onTap: isExporting ? null : exportToExcel,
       child: Container(
         height: 36,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isExporting ? Colors.grey[300] : Colors.white,
           borderRadius: BorderRadius.circular(4),
         ),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Center(
-            child: Text(
-              'Cetak Excel',
-              style: TextStyle(
-                color: Color(0xFF133E87),
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
+            child: isExporting
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: const Color(0xFF133E87),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Ekspor...',
+                      style: TextStyle(
+                        color: Color(0xFF133E87),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Cetak Excel',
+                      style: TextStyle(
+                        color: Color(0xFF133E87),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
           ),
         ),
       ),
@@ -592,7 +742,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
 
     final List<double> currentYearData = yearlyData[selectedYear.toString()] ?? 
-                                         List.generate(12, (index) => 0.0);
+                                       List.generate(12, (index) => 0.0);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -784,6 +934,58 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
                                       ],
                                     );
                             },
+                          ),
+                          // Add export button inside the card
+                          const SizedBox(height: 24),
+                          GestureDetector(
+                            onTap: isExporting ? null : exportToExcel,
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isExporting ? Colors.grey[300] : const Color(0xFF133E87),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: isExporting
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          'Mengekspor data...',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Ekspor Data ke Excel',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                              ),
+                            ),
                           ),
                         ],
                       ),

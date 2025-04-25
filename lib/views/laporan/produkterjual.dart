@@ -350,11 +350,6 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
                 : Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.file_download,
-                        color: Color(0xFF133E87),
-                        size: 18,
-                      ),
                       SizedBox(width: 4),
                       Text(
                         'Cetak Excel',
