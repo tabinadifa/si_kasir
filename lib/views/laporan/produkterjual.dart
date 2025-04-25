@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart' hide Border; 
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart'; 
 import 'dart:io';
 
 class ProdukTerjualScreen extends StatefulWidget {
@@ -141,190 +141,214 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
 
   // Function to export data to Excel
   Future<void> _exportToExcel() async {
-    if (products.isEmpty) {
-      _showSnackBar('Tidak ada data untuk diekspor');
-      return;
-    }
 
-    try {
-      setState(() {
-        isExporting = true;
-      });
+  try {
+    setState(() {
+      isExporting = true;
+    });
 
-      // Request storage permission for Android
-      if (Platform.isAndroid) {
-        var status = await Permission.storage.request();
-        if (!status.isGranted) {
-          _showSnackBar('Izin penyimpanan diperlukan untuk menyimpan file');
-          setState(() {
-            isExporting = false;
-          });
-          return;
-        }
-      }
 
-      // Create Excel document
-      final excel = Excel.createExcel();
-      final sheet = excel['Produk Terjual $selectedYear'];
+    // Create Excel document
+    final excel = Excel.createExcel();
+    final sheet = excel['Produk Terjual $selectedYear'];
 
-      // Add headers
-      List<String> headers = [
-        'No',
-        'Nama Produk',
-        'Kategori',
-        'Harga',
-        'Total Produk',
-        'Terjual',
-        'Tersisa',
-        'Status',
-        'Best Seller'
-      ];
+    // Add headers
+    List<String> headers = [
+      'No',
+      'Nama Produk',
+      'Kategori',
+      'Harga',
+      'Total Produk',
+      'Terjual',
+      'Tersisa',
+      'Status',
+      'Best Seller'
+    ];
 
-      // Style for headers
-      CellStyle headerStyle = CellStyle(
-        bold: true,
-        backgroundColorHex: ExcelColor.fromHexString('FF133E87'),
-        fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),   
-        horizontalAlign: HorizontalAlign.Center,
-      );
-
-      // Add headers to sheet
-      for (int i = 0; i < headers.length; i++) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
-          ..value = headers[i] as CellValue?
-          ..cellStyle = headerStyle;
-      }
-
-      // Group products by category
-      Map<String, List<Map<String, dynamic>>> groupedProducts = {};
-      for (var product in products) {
-        final category = product['kategori'] ?? 'Umum';
-        if (!groupedProducts.containsKey(category)) {
-          groupedProducts[category] = [];
-        }
-        groupedProducts[category]!.add(product);
-      }
-
-      int rowIndex = 1;
-      int productNumber = 1;
-
-      // Add category headers and products
-      for (var category in groupedProducts.keys) {
-        // Add category header
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-          ..value = 'Kategori: $category' as CellValue?
-          ..cellStyle = CellStyle(
-            bold: true,
-            backgroundColorHex: ExcelColor.fromHexString('FFEEEEEE'),
-          );
-        sheet.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex), 
-                   CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: rowIndex));
-        rowIndex++;
-
-        // Add products for this category
-        for (var product in groupedProducts[category]!) {
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = productNumber as CellValue?;
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
-            .value = product['nama'];
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-            .value = product['kategori'];
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
-            .value = 'Rp${NumberFormat('#,###').format(product['harga'] ?? 0)}' as CellValue?;
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
-            .value = (product['stok'] ?? 0) + (product['terjual'] ?? 0);
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
-            .value = product['terjual'] ?? 0;
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
-            .value = product['stok'] ?? 0;
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
-            .value = product['status'];
-          
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
-            .value = (product['isBestSellerInCategory'] == true ? 'Ya' : 'Tidak') as CellValue?;
-
-          rowIndex++;
-          productNumber++;
-        }
-
-        // Add empty row after each category
-        rowIndex++;
-      }
-
-      for (int i = 0; i < headers.length; i++) {
-        sheet.setColumnWidth(i, 15.0);
-      }
-        sheet.setColumnWidth(1, 25.0); 
-
-      // Save file
-      final fileName = 'Produk_Terjual_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
-      
-      Directory? directory;
-      if (Platform.isAndroid) {
-        // For Android, save to Downloads folder
-        directory = Directory('/storage/emulated/0/Download');
-        // Create directory if it doesn't exist
-        if (!await directory.exists()) {
-          directory = await getExternalStorageDirectory();
-        }
-      } else if (Platform.isIOS) {
-        // For iOS, save to Documents directory
-        directory = await getApplicationDocumentsDirectory();
-      } else {
-        // For other platforms
-        directory = await getApplicationDocumentsDirectory();
-      }
-
-      if (directory == null) {
-        throw Exception('Could not access storage directory');
-      }
-
-      final filePath = '${directory.path}/$fileName';
-      final file = File(filePath);
-      
-      // Save the excel file
-      final excelData = excel.encode();
-      if (excelData != null) {
-        await file.writeAsBytes(excelData);
-        
-        _showSnackBar('File berhasil disimpan di: $filePath');
-        
-        // For iOS where files are saved to app's documents directory,
-        // you may want to use share plugin to let the user access the file
-        if (Platform.isIOS) {
-          // ShareExtend.share(filePath, "file");
-          // Note: You'd need to add the share_extend package for this
-        }
-      } else {
-        throw Exception('Failed to encode Excel data');
-      }
-
-    } catch (e) {
-      print('Error exporting to Excel: $e');
-      _showSnackBar('Gagal mengekspor data: ${e.toString()}');
-    } finally {
-      setState(() {
-        isExporting = false;
-      });
-    }
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 3),
-      ),
+    // Style for headers
+    CellStyle headerStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.fromHexString('FF133E87'),
+      fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),   
+      horizontalAlign: HorizontalAlign.Center,
     );
+
+    for (int i = 0; i < headers.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+        ..value = TextCellValue(headers[i])  
+        ..cellStyle = headerStyle;
+}
+
+    // Group products by category
+    Map<String, List<Map<String, dynamic>>> groupedProducts = {};
+    for (var product in products) {
+      final category = product['kategori'] ?? 'Umum';
+      if (!groupedProducts.containsKey(category)) {
+        groupedProducts[category] = [];
+      }
+      groupedProducts[category]!.add(product);
+    }
+
+    int rowIndex = 1;
+    int productNumber = 1;
+
+    // Add category headers and products
+    for (var category in groupedProducts.keys) {
+      // Add category header
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+        ..value = TextCellValue('Kategori: $category')
+        ..cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString('FFEEEEEE'),
+        );
+      sheet.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex), 
+                CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: rowIndex));
+      rowIndex++;
+
+      // Add products for this category
+      for (var product in groupedProducts[category]!) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+          .value = TextCellValue(productNumber.toString());
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+          .value = TextCellValue(product['nama']?.toString() ?? '');
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+          .value = TextCellValue(product['kategori']?.toString() ?? '');
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+          .value = TextCellValue('Rp${NumberFormat('#,###').format(product['harga'] ?? 0)}');
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+          .value = TextCellValue(((product['stok'] ?? 0) + (product['terjual'] ?? 0)).toString());
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+          .value = TextCellValue((product['terjual'] ?? 0).toString());
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
+          .value = TextCellValue((product['stok'] ?? 0).toString());
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+          .value = TextCellValue(product['status']?.toString() ?? '');
+
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
+          .value = TextCellValue((product['isBestSellerInCategory'] == true ? 'Ya' : 'Tidak'));
+
+
+        rowIndex++;
+        productNumber++;
+      }
+
+      // Add empty row after each category
+      rowIndex++;
+    }
+
+    for (int i = 0; i < headers.length; i++) {
+      sheet.setColumnWidth(i, 15.0);
+    }
+    sheet.setColumnWidth(1, 25.0); 
+
+    await _saveToLocalStorage(excel);
+
+  } catch (e) {
+    print('Error exporting to Excel: $e');
+    _showErrorDialog('Gagal mengekspor data: ${e.toString()}');
+  } finally {
+    setState(() {
+      isExporting = false;
+    });
   }
+}
+
+Future<void> _saveToLocalStorage(Excel excel) async {
+  try {
+    // Get downloads directory (or documents directory if downloads is not available)
+    Directory? directory;
+    try {
+      if (Platform.isAndroid) {
+        directory = await getExternalStorageDirectory();
+        String newPath = '';
+        List<String> paths = directory!.path.split('/');
+        for (int x = 1; x < paths.length; x++) {
+          String folder = paths[x];
+          if (folder != 'Android') {
+            newPath += '/$folder';
+          } else {
+            break;
+          }
+        }
+        newPath = '$newPath/Download';
+        directory = Directory(newPath);
+      } else if (Platform.isIOS) {
+        directory = await getApplicationDocumentsDirectory();
+      }
+      
+      if (!await directory!.exists()) {
+        directory = await getApplicationDocumentsDirectory();
+      }
+    } catch (e) {
+      directory = await getApplicationDocumentsDirectory();
+    }
+
+    final fileName = 'Produk_Terjual_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
+    final filePath = '${directory.path}/$fileName';
+    
+    final excelBytes = excel.encode();
+    if (excelBytes == null) {
+      throw Exception('Gagal mengencode Excel');
+    }
+
+    final file = File(filePath);
+    await file.writeAsBytes(excelBytes, flush: true);
+    
+    _showSuccessDialog('Laporan berhasil disimpan di:\n$filePath');
+    
+  } on MissingPluginException catch (e) {
+    _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
+  } catch (e) {
+    _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
+  }
+}
+
+void _showErrorDialog(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Error'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showSuccessDialog(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Sukses'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('OK'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            // Buka file jika diperlukan
+            // final result = await OpenFile.open(filePath);
+          },
+          child: const Text('Buka File'),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildExportButton() {
     return GestureDetector(
