@@ -3,9 +3,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart' hide Border;
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 
 class OmzetPertahunScreen extends StatefulWidget {
@@ -311,44 +311,112 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
     sheet.setColumnWidth(0, 25);
     sheet.setColumnWidth(1, 20);
 
-    final fileName = 'Omzet_Tahun_$selectedYear.xlsx';
-
-    if (Platform.isAndroid) {
-      final status = await Permission.storage.request();
-      if (!status.isGranted) {
-        throw Exception('Permission denied');
-      }
-    }
-
-    final directory = await getApplicationDocumentsDirectory();
-    final path = '${directory.path}/$fileName';
-
-    final fileBytes = excel.encode();
-    if (fileBytes != null) {
-      final file = File(path);
-      await file.writeAsBytes(fileBytes);
-
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: 'Data Omzet Tahun $selectedYear',
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('File Excel berhasil disimpan: $path')),
-      );
-    } else {
-      throw Exception('Failed to generate Excel file');
-    }
+    await _saveToLocalStorage(excel);
+    
   } catch (e) {
     print('Error exporting to Excel: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error: Gagal mengekspor data. ${e.toString()}')),
-    );
+    _showErrorDialog('Gagal mengekspor data: ${e.toString()}');
   } finally {
     setState(() {
       isExporting = false;
     });
   }
+}
+
+Future<void> _saveToLocalStorage(Excel excel) async {
+  try {
+    // Get downloads directory (or documents directory if downloads is not available)
+    Directory? directory;
+    try {
+      if (Platform.isAndroid) {
+        directory = await getExternalStorageDirectory();
+        String newPath = '';
+        List<String> paths = directory!.path.split('/');
+        for (int x = 1; x < paths.length; x++) {
+          String folder = paths[x];
+          if (folder != 'Android') {
+            newPath += '/$folder';
+          } else {
+            break;
+          }
+        }
+        newPath = '$newPath/Download';
+        directory = Directory(newPath);
+      } else if (Platform.isIOS) {
+        directory = await getApplicationDocumentsDirectory();
+      }
+      
+      if (!await directory!.exists()) {
+        directory = await getApplicationDocumentsDirectory();
+      }
+    } catch (e) {
+      directory = await getApplicationDocumentsDirectory();
+    }
+
+    final fileName = 'Omzet_Tahun_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
+    final filePath = '${directory.path}/$fileName';
+    
+    final excelBytes = excel.encode();
+    if (excelBytes == null) {
+      throw Exception('Gagal mengencode Excel');
+    }
+
+    final file = File(filePath);
+    await file.writeAsBytes(excelBytes, flush: true);
+    
+    _showSuccessDialog('Laporan berhasil disimpan', filePath);
+    
+  } on MissingPluginException catch (e) {
+    _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
+  } catch (e) {
+    _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
+  }
+}
+
+void _showErrorDialog(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Error'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showSuccessDialog(String message, String filePath) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Sukses'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('OK'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            try {
+              final result = await OpenFile.open(filePath);
+              if (result.type != ResultType.done) {
+                _showErrorDialog('Gagal membuka file: ${result.message}');
+              }
+            } catch (e) {
+              _showErrorDialog('Gagal membuka file: ${e.toString()}');
+            }
+          },
+          child: const Text('Buka File'),
+        ),
+      ],
+    ),
+  );
 }
 
 

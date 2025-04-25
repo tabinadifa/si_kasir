@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:excel/excel.dart' hide Border; 
+import 'package:excel/excel.dart' hide Border;
+import 'package:open_file/open_file.dart'; 
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
@@ -301,7 +302,7 @@ Future<void> _saveToLocalStorage(Excel excel) async {
     final file = File(filePath);
     await file.writeAsBytes(excelBytes, flush: true);
     
-    _showSuccessDialog('Laporan berhasil disimpan');
+    _showSuccessDialog('Laporan berhasil disimpan', filePath);
     
   } on MissingPluginException catch (e) {
     _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
@@ -326,7 +327,7 @@ void _showErrorDialog(String message) {
   );
 }
 
-void _showSuccessDialog(String message) {
+void _showSuccessDialog(String message, String filePath){
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -340,8 +341,14 @@ void _showSuccessDialog(String message) {
         TextButton(
           onPressed: () async {
             Navigator.pop(context);
-            // Buka file jika diperlukan
-            // final result = await OpenFile.open(filePath);
+            try {
+              final result = await OpenFile.open(filePath);
+              if (result.type != ResultType.done) {
+                _showErrorDialog('Gagal membuka file: ${result.message}');
+              }
+            } catch (e) {
+              _showErrorDialog('Gagal membuka file: ${e.toString()}');
+            }
           },
           child: const Text('Buka File'),
         ),
