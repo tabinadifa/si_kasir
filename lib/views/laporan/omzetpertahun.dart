@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:open_file/open_file.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
@@ -327,8 +328,20 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
     }
   }
 
+  Future<void> _requestPermission() async {
+  if (await Permission.manageExternalStorage.isGranted) {
+    return;
+  }
+  
+  var status = await Permission.manageExternalStorage.request();
+  if (!status.isGranted) {
+    throw Exception('Permission denied');
+  }
+}
+
   Future<void> _saveToLocalStorage(Excel excel) async {
     try {
+      await _requestPermission();
       // Hanya untuk Android, langsung gunakan external storage directory
       Directory? directory = await getExternalStorageDirectory();
       String newPath = '';

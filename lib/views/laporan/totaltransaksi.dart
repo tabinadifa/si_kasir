@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:excel/excel.dart' hide Border;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
@@ -312,8 +313,20 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     }
   }
 
+  Future<void> _requestPermission() async {
+  if (await Permission.manageExternalStorage.isGranted) {
+    return;
+  }
+  
+  var status = await Permission.manageExternalStorage.request();
+  if (!status.isGranted) {
+    throw Exception('Permission denied');
+  }
+}
+
    Future<void> _saveToLocalStorage(Excel excel) async {
     try {
+      await _requestPermission();
       // Hanya untuk Android, langsung gunakan external storage directory
       Directory? directory = await getExternalStorageDirectory();
       String newPath = '';
