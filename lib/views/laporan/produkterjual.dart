@@ -261,55 +261,49 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
   }
 }
 
-Future<void> _saveToLocalStorage(Excel excel) async {
-  try {
-    // Get downloads directory (or documents directory if downloads is not available)
-    Directory? directory;
+ Future<void> _saveToLocalStorage(Excel excel) async {
     try {
-      if (Platform.isAndroid) {
-        directory = await getExternalStorageDirectory();
-        String newPath = '';
-        List<String> paths = directory!.path.split('/');
-        for (int x = 1; x < paths.length; x++) {
-          String folder = paths[x];
-          if (folder != 'Android') {
-            newPath += '/$folder';
-          } else {
-            break;
-          }
-        }
-        newPath = '$newPath/Download';
-        directory = Directory(newPath);
-      } else if (Platform.isIOS) {
-        directory = await getApplicationDocumentsDirectory();
-      }
+      // Hanya untuk Android, langsung gunakan external storage directory
+      Directory? directory = await getExternalStorageDirectory();
+      String newPath = '';
       
-      if (!await directory!.exists()) {
-        directory = await getApplicationDocumentsDirectory();
+      // Split path untuk mendapatkan direktori Download
+      List<String> paths = directory!.path.split('/');
+      for (int x = 1; x < paths.length; x++) {
+        String folder = paths[x];
+        if (folder != 'Android') {
+          newPath += '/$folder';
+        } else {
+          break;
+        }
       }
+      newPath = '$newPath/Download';
+      directory = Directory(newPath);
+
+      // Buat direktori jika belum ada
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      final fileName = 'Produk_Terjual_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
+      final filePath = '${directory.path}/$fileName';
+      
+      final excelBytes = excel.encode();
+      if (excelBytes == null) {
+        throw Exception('Gagal mengencode Excel');
+      }
+
+      final file = File(filePath);
+      await file.writeAsBytes(excelBytes, flush: true);
+      
+      _showSuccessDialog('Laporan berhasil disimpan', filePath);
+      
+    } on MissingPluginException catch (e) {
+      _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
     } catch (e) {
-      directory = await getApplicationDocumentsDirectory();
+      _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
     }
-
-    final fileName = 'Produk_Terjual_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
-    final filePath = '${directory.path}/$fileName';
-    
-    final excelBytes = excel.encode();
-    if (excelBytes == null) {
-      throw Exception('Gagal mengencode Excel');
-    }
-
-    final file = File(filePath);
-    await file.writeAsBytes(excelBytes, flush: true);
-    
-    _showSuccessDialog('Laporan berhasil disimpan', filePath);
-    
-  } on MissingPluginException catch (e) {
-    _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
-  } catch (e) {
-    _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
   }
-}
 
 void _showErrorDialog(String message) {
   showDialog(

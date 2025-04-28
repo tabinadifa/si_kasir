@@ -325,31 +325,26 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
 
   Future<void> _saveToLocalStorage(Excel excel) async {
     try {
-      Directory? directory;
-      try {
-        if (Platform.isAndroid) {
-          directory = await getExternalStorageDirectory();
-          String newPath = '';
-          List<String> paths = directory!.path.split('/');
-          for (int x = 1; x < paths.length; x++) {
-            String folder = paths[x];
-            if (folder != 'Android') {
-              newPath += '/$folder';
-            } else {
-              break;
-            }
-          }
-          newPath = '$newPath/Download';
-          directory = Directory(newPath);
-        } else if (Platform.isIOS) {
-          directory = await getApplicationDocumentsDirectory();
+      // Hanya untuk Android, langsung gunakan external storage directory
+      Directory? directory = await getExternalStorageDirectory();
+      String newPath = '';
+      
+      // Split path untuk mendapatkan direktori Download
+      List<String> paths = directory!.path.split('/');
+      for (int x = 1; x < paths.length; x++) {
+        String folder = paths[x];
+        if (folder != 'Android') {
+          newPath += '/$folder';
+        } else {
+          break;
         }
-        
-        if (!await directory!.exists()) {
-          directory = await getApplicationDocumentsDirectory();
-        }
-      } catch (e) {
-        directory = await getApplicationDocumentsDirectory();
+      }
+      newPath = '$newPath/Download';
+      directory = Directory(newPath);
+
+      // Buat direktori jika belum ada
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
       }
 
       final fileName = 'Omzet_Tahun_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
@@ -365,7 +360,7 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
       
       _showSuccessDialog('Laporan berhasil disimpan', filePath);
       
-    } on MissingPluginException catch (e) {
+    }  on MissingPluginException catch (e) {
       _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
     } catch (e) {
       _showErrorDialog('Gagal menyimpan file: ${e.toString()}');

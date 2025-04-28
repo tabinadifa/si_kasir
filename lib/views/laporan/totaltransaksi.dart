@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:excel/excel.dart' hide Border;
-import 'package:flutter/services.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class TotalTransaksiScreen extends StatefulWidget {
@@ -229,17 +229,28 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
       // Sheet Ringkasan
       final sheetSummary = excel['Ringkasan'];
       
+      // Style for headers
+      CellStyle headerStyle = CellStyle(
+        bold: true,
+        backgroundColorHex: ExcelColor.fromHexString('FF133E87'),
+        fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),   
+        horizontalAlign: HorizontalAlign.Center,
+      );
+
       sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
         ..value = TextCellValue('LAPORAN KEUANGAN TAHUN $selectedYear')
-        ..cellStyle = CellStyle(bold: true);
+        ..cellStyle = headerStyle;
+      
+      sheetSummary.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0), 
+                         CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0));
       
       sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2))
         ..value = TextCellValue('Kategori')
-        ..cellStyle = CellStyle(bold: true);
+        ..cellStyle = headerStyle;
       
       sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2))
         ..value = TextCellValue('Jumlah')
-        ..cellStyle = CellStyle(bold: true);
+        ..cellStyle = headerStyle;
       
       double _toDouble(dynamic value) {
         if (value == null) return 0.0;
@@ -274,7 +285,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
         for (int i = 0; i < headers.length; i++) {
           sheetTransaksi.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
             ..value = TextCellValue(headers[i])
-            ..cellStyle = CellStyle(bold: true);
+            ..cellStyle = headerStyle;
         }
         
         for (int i = 0; i < transaksiData.length; i++) {
@@ -303,7 +314,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
         for (int i = 0; i < headers.length; i++) {
           sheetPengeluaran.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
             ..value = TextCellValue(headers[i])
-            ..cellStyle = CellStyle(bold: true);
+            ..cellStyle = headerStyle;
         }
         
         for (int i = 0; i < pengeluaranData.length; i++) {
@@ -342,57 +353,49 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     }
   }
 
-  Future<void> _saveToLocalStorage(Excel excel) async {
-  try {
-    // Get downloads directory (or documents directory if downloads is not available)
-    Directory? directory;
+   Future<void> _saveToLocalStorage(Excel excel) async {
     try {
-      if (Platform.isAndroid) {
-        directory = await getExternalStorageDirectory();
-        String newPath = '';
-        List<String> paths = directory!.path.split('/');
-        for (int x = 1; x < paths.length; x++) {
-          String folder = paths[x];
-          if (folder != 'Android') {
-            newPath += '/$folder';
-          } else {
-            break;
-          }
-        }
-        newPath = '$newPath/Download';
-        directory = Directory(newPath);
-      } else if (Platform.isIOS) {
-        directory = await getApplicationDocumentsDirectory();
-      }
+      // Hanya untuk Android, langsung gunakan external storage directory
+      Directory? directory = await getExternalStorageDirectory();
+      String newPath = '';
       
-      if (!await directory!.exists()) {
-        directory = await getApplicationDocumentsDirectory();
+      // Split path untuk mendapatkan direktori Download
+      List<String> paths = directory!.path.split('/');
+      for (int x = 1; x < paths.length; x++) {
+        String folder = paths[x];
+        if (folder != 'Android') {
+          newPath += '/$folder';
+        } else {
+          break;
+        }
       }
+      newPath = '$newPath/Download';
+      directory = Directory(newPath);
+
+      // Buat direktori jika belum ada
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      final fileName = 'Laporan_Keuangan_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
+      final filePath = '${directory.path}/$fileName';
+      
+      final excelBytes = excel.encode();
+      if (excelBytes == null) {
+        throw Exception('Gagal mengencode Excel');
+      }
+
+      final file = File(filePath);
+      await file.writeAsBytes(excelBytes, flush: true);
+      
+      _showSuccessDialog('Laporan berhasil disimpan', filePath);
+      
+    }  on MissingPluginException catch (e) {
+      _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
     } catch (e) {
-      directory = await getApplicationDocumentsDirectory();
+      _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
     }
-
-    // ignore: unused_local_variable
-    final now = DateTime.now();
-    final fileName = 'Laporan_Keuangan_$selectedYear.xlsx';
-    final filePath = '${directory.path}/$fileName';
-    
-    final excelBytes = excel.encode();
-    if (excelBytes == null) {
-      throw Exception('Gagal mengencode Excel');
-    }
-
-    final file = File(filePath);
-    await file.writeAsBytes(excelBytes, flush: true);
-    
-    _showSuccessDialog('Laporan berhasil disimpan', filePath);
-    
-  } on MissingPluginException catch (e) {
-    _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
-  } catch (e) {
-    _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
   }
-}
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -411,64 +414,70 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   }
 
   void _showSuccessDialog(String message, String filePath) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Sukses'),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('OK'),
-        ),
-        TextButton(
-          onPressed: () async {
-            Navigator.pop(context);
-            try {
-              final result = await OpenFile.open(filePath);
-              if (result.type != ResultType.done) {
-                _showErrorDialog('Gagal membuka file: ${result.message}');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sukses'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                final result = await OpenFile.open(filePath);
+                if (result.type != ResultType.done) {
+                  _showErrorDialog('Gagal membuka file: ${result.message}');
+                }
+              } catch (e) {
+                _showErrorDialog('Gagal membuka file: ${e.toString()}');
               }
-            } catch (e) {
-              _showErrorDialog('Gagal membuka file: ${e.toString()}');
-            }
-          },
-          child: const Text('Buka File'),
-        ),
-      ],
-    ),
-  );
-}
+            },
+            child: const Text('Buka File'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildExportButton() {
     return GestureDetector(
-      onTap: (isLoading || isExporting) ? null : _exportToExcel,
+      onTap: isExporting ? null : _exportToExcel,
       child: Container(
         height: 36,
         decoration: BoxDecoration(
-          color: (isLoading || isExporting) ? Colors.grey[300] : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Center(
             child: isExporting
-              ? SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF133E87),
-                    strokeWidth: 2,
+                ? SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF133E87)),
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(width: 4),
+                      Text(
+                        'Cetak Excel',
+                        style: TextStyle(
+                          color: Color(0xFF133E87),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              : Text(
-                  'Cetak Excel',
-                  style: TextStyle(
-                    color: (isLoading || isExporting) ? Colors.grey[600] : Color(0xFF133E87),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
           ),
         ),
       ),
