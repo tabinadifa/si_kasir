@@ -130,8 +130,6 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
 
     try {
       pengeluaranData.clear();
-
-      // 1. Hitung pengeluaran dari produk
       QuerySnapshot produkSnapshot = await _firestore
           .collection('produk')
           .where('email', isEqualTo: userEmail)
@@ -154,48 +152,9 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
           'hargaBeli': hargaBeli,
           'stok': stok,
           'total': total,
-          'jenis': 'Produk',
         });
         
         pengeluaran += total;
-      }
-
-      // 2. Hitung pengeluaran dari transaksi
-      QuerySnapshot transaksiSnapshot = await _firestore
-          .collection('transaksi')
-          .where('email', isEqualTo: userEmail)
-          .where('timestamp', isGreaterThanOrEqualTo: startTimestamp)
-          .where('timestamp', isLessThanOrEqualTo: endTimestamp)
-          .get();
-
-      for (var doc in transaksiSnapshot.docs) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        
-        if (data.containsKey('products') && data['products'] is List) {
-          List<dynamic> products = data['products'];
-          
-          for (var product in products) {
-            if (product is Map<String, dynamic>) {
-              double hargaBeli = (product['price'] ?? 0).toDouble();
-              int quantity = (product['quantity'] ?? 0).toInt();
-              double total = hargaBeli * quantity;
-              
-              pengeluaranData.add({
-                'id': doc.id,
-                'nama': product['name']?.toString() ?? '-',
-                'tanggal': data['timestamp'] != null 
-                    ? DateFormat('dd/MM/yyyy').format((data['timestamp'] as Timestamp).toDate()) 
-                    : '-',
-                'hargaBeli': hargaBeli,
-                'stok': quantity,
-                'total': total,
-                'jenis': 'Transaksi',
-              });
-              
-              pengeluaran += total;
-            }
-          }
-        }
       }
 
       setState(() {
