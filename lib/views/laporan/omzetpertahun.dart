@@ -244,6 +244,10 @@ class _OmzetPertahunScreenState extends State<OmzetPertahunScreen> {
       final excel = Excel.createExcel();
       final sheet = excel['Omzet Tahun $selectedYear'];
 
+      if (excel.sheets.keys.contains('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
       final allMonths = [
         'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'

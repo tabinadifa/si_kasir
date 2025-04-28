@@ -142,18 +142,21 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
 
   // Function to export data to Excel
   Future<void> _exportToExcel() async {
-
   try {
     setState(() {
       isExporting = true;
     });
 
-
-    // Create Excel document
+    // Buat dokumen Excel
     final excel = Excel.createExcel();
     final sheet = excel['Produk Terjual $selectedYear'];
 
-    // Add headers
+    // Hapus Sheet1 default
+    if (excel.sheets.keys.contains('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    // Header
     List<String> headers = [
       'No',
       'Nama Produk',
@@ -166,21 +169,21 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
       'Best Seller'
     ];
 
-    // Style for headers
+    // Style untuk header
     CellStyle headerStyle = CellStyle(
       bold: true,
       backgroundColorHex: ExcelColor.fromHexString('FF133E87'),
-      fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),   
+      fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),
       horizontalAlign: HorizontalAlign.Center,
     );
 
     for (int i = 0; i < headers.length; i++) {
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
-        ..value = TextCellValue(headers[i])  
+        ..value = TextCellValue(headers[i])
         ..cellStyle = headerStyle;
-}
+    }
 
-    // Group products by category
+    // Grupkan produk berdasarkan kategori
     Map<String, List<Map<String, dynamic>>> groupedProducts = {};
     for (var product in products) {
       final category = product['kategori'] ?? 'Umum';
@@ -193,21 +196,30 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     int rowIndex = 1;
     int productNumber = 1;
 
-    // Add category headers and products
+    // Tambahkan data produk
     for (var category in groupedProducts.keys) {
-      // Add category header
+      // Header kategori
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
         ..value = TextCellValue('Kategori: $category')
         ..cellStyle = CellStyle(
           bold: true,
           backgroundColorHex: ExcelColor.fromHexString('FFEEEEEE'),
         );
-      sheet.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex), 
-                CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: rowIndex));
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+        CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: rowIndex),
+      );
       rowIndex++;
 
-      // Add products for this category
+      // Inisialisasi total kategori
+      int totalProduk = 0;
+      int totalTerjual = 0;
+      int totalTersisa = 0;
+
       for (var product in groupedProducts[category]!) {
+        final stok = (product['stok'] ?? 0) as int;
+        final terjual = (product['terjual'] ?? 0) as int;
+
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
           .value = TextCellValue(productNumber.toString());
 
@@ -221,13 +233,13 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
           .value = TextCellValue('Rp${NumberFormat('#,###').format(product['harga'] ?? 0)}');
 
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
-          .value = TextCellValue(((product['stok'] ?? 0) + (product['terjual'] ?? 0)).toString());
+          .value = TextCellValue((stok + terjual).toString());
 
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
-          .value = TextCellValue((product['terjual'] ?? 0).toString());
+          .value = TextCellValue(terjual.toString());
 
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
-          .value = TextCellValue((product['stok'] ?? 0).toString());
+          .value = TextCellValue(stok.toString());
 
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
           .value = TextCellValue(product['status']?.toString() ?? '');
@@ -235,19 +247,53 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
           .value = TextCellValue((product['isBestSellerInCategory'] == true ? 'Ya' : 'Tidak'));
 
+        // Update total
+        totalProduk += stok + terjual;
+        totalTerjual += terjual;
+        totalTersisa += stok;
 
         rowIndex++;
         productNumber++;
       }
 
-      // Add empty row after each category
+      // Baris total per kategori
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+        ..value = TextCellValue('Total')
+        ..cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString('FFCCCCCC'),
+        );
+
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+        ..value = TextCellValue(totalProduk.toString())
+        ..cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString('FFCCCCCC'),
+        );
+
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+        ..value = TextCellValue(totalTerjual.toString())
+        ..cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString('FFCCCCCC'),
+        );
+
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
+        ..value = TextCellValue(totalTersisa.toString())
+        ..cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString('FFCCCCCC'),
+        );
+
+      rowIndex++;
       rowIndex++;
     }
 
+    // Set lebar kolom
     for (int i = 0; i < headers.length; i++) {
       sheet.setColumnWidth(i, 15.0);
     }
-    sheet.setColumnWidth(1, 25.0); 
+    sheet.setColumnWidth(1, 25.0);
 
     await _saveToLocalStorage(excel);
 
@@ -260,6 +306,7 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     });
   }
 }
+
 
  Future<void> _saveToLocalStorage(Excel excel) async {
     try {
