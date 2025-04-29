@@ -46,6 +46,8 @@ flutter:
     - assets/produk/
     - assets/profile.jpeg
     - assets/qris.jpeg
+    - assets/banner.jpg
+    - assets/banner1.jpg
     
 
 flutter_icons:
