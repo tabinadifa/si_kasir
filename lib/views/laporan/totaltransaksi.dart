@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,9 +16,8 @@ class TotalTransaksiScreen extends StatefulWidget {
 }
 
 class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
-  int selectedYear = DateTime.now().year;
-  final int endYear = DateTime.now().year;
-  final int startYear = DateTime.now().year - 5;
+  DateTime startDate = DateTime.now();
+  DateTime endDate = DateTime.now();
 
   double totalLunas = 0;
   double totalHutang = 0;
@@ -37,13 +37,51 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   void initState() {
     super.initState();
     _getUserEmail();
+    _loadData();
   }
 
   Future<void> _getUserEmail() async {
-    User? user = _auth.currentUser;
-    if (user != null) {
+    final user = _auth.currentUser;
+    setState(() {
+      userEmail = user?.email;
+    });
+  }
+
+  Future<void> _selectDateRange(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? startDate : endDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Color(0xFF133E87),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+            dialogBackgroundColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (picked != null) {
       setState(() {
-        userEmail = user.email;
+        if (isStartDate) {
+          startDate = picked;
+          if (endDate.isBefore(startDate)) {
+            endDate = startDate;
+          }
+        } else {
+          endDate = picked.isAfter(DateTime.now()) ? DateTime.now() : picked;
+          if (endDate.isBefore(startDate)) {
+            startDate = endDate;
+          }
+        }
       });
       _loadData();
     }
@@ -67,16 +105,13 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   }
 
   Future<void> _calculateTransaksi() async {
-    print("Mengambil data transaksi untuk tahun $selectedYear");
+    print("Mengambil data transaksi dari ${startDate} hingga ${endDate}");
 
     double lunas = 0;
     double hutang = 0;
 
-    DateTime startDate = DateTime(selectedYear, 1, 1);
-    DateTime endDate = DateTime(selectedYear, 12, 31, 23, 59, 59);
-    
     Timestamp startTimestamp = Timestamp.fromDate(startDate);
-    Timestamp endTimestamp = Timestamp.fromDate(endDate);
+    Timestamp endTimestamp = Timestamp.fromDate(endDate.add(Duration(days: 1)).subtract(Duration(seconds: 1)));
 
     try {
       QuerySnapshot transaksiSnapshot = await _firestore
@@ -123,11 +158,8 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   Future<void> _calculatePengeluaran() async {
     double pengeluaran = 0;
 
-    DateTime startDate = DateTime(selectedYear, 1, 1);
-    DateTime endDate = DateTime(selectedYear, 12, 31, 23, 59, 59);
-    
     Timestamp startTimestamp = Timestamp.fromDate(startDate);
-    Timestamp endTimestamp = Timestamp.fromDate(endDate);
+    Timestamp endTimestamp = Timestamp.fromDate(endDate.add(Duration(days: 1)).subtract(Duration(seconds: 1)));
 
     try {
       pengeluaranData.clear();
@@ -198,7 +230,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
       );
 
       sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
-        ..value = TextCellValue('LAPORAN KEUANGAN TAHUN $selectedYear')
+        ..value = TextCellValue('LAPORAN KEUANGAN ${DateFormat('dd/MM/yyyy').format(startDate)} - ${DateFormat('dd/MM/yyyy').format(endDate)}')
         ..cellStyle = headerStyle;
       
       sheetSummary.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0), 
@@ -314,24 +346,22 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
   }
 
   Future<void> _requestPermission() async {
-  if (await Permission.manageExternalStorage.isGranted) {
-    return;
+    if (await Permission.manageExternalStorage.isGranted) {
+      return;
+    }
+    
+    var status = await Permission.manageExternalStorage.request();
+    if (!status.isGranted) {
+      throw Exception('Permission denied');
+    }
   }
-  
-  var status = await Permission.manageExternalStorage.request();
-  if (!status.isGranted) {
-    throw Exception('Permission denied');
-  }
-}
 
-   Future<void> _saveToLocalStorage(Excel excel) async {
+  Future<void> _saveToLocalStorage(Excel excel) async {
     try {
       await _requestPermission();
-      // Hanya untuk Android, langsung gunakan external storage directory
       Directory? directory = await getExternalStorageDirectory();
       String newPath = '';
       
-      // Split path untuk mendapatkan direktori Download
       List<String> paths = directory!.path.split('/');
       for (int x = 1; x < paths.length; x++) {
         String folder = paths[x];
@@ -344,12 +374,11 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
       newPath = '$newPath/Download';
       directory = Directory(newPath);
 
-      // Buat direktori jika belum ada
       if (!await directory.exists()) {
         await directory.create(recursive: true);
       }
 
-      final fileName = 'Laporan_Keuangan_${selectedYear}_${DateFormat('dd-MM-yyyy').format(DateTime.now())}.xlsx';
+      final fileName = 'Laporan_Keuangan_${DateFormat('dd-MM-yyyy').format(startDate)}_hingga_${DateFormat('dd-MM-yyyy').format(endDate)}.xlsx';
       final filePath = '${directory.path}/$fileName';
       
       final excelBytes = excel.encode();
@@ -451,7 +480,7 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
     );
   }
 
-   void _showSuccessDialog(String message, String filePath) {
+  void _showSuccessDialog(String message, String filePath) {
     final fileName = filePath.split('/').last;
 
     showDialog(
@@ -666,72 +695,116 @@ class _TotalTransaksiScreenState extends State<TotalTransaksiScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(
-                vertical: isSmallScreen ? 10 : 12,
-                horizontal: isSmallScreen ? 12 : 16,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFF133E87),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: Colors.white,
-                        size: isSmallScreen ? 18 : 20,
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _selectDateRange(context, true),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        vertical: isSmallScreen ? 14 : 16,
+                        horizontal: isSmallScreen ? 12 : 16,
                       ),
-                      SizedBox(width: isSmallScreen ? 6 : 8),
-                      Text(
-                        'Tahun',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isSmallScreen ? 14 : 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  DropdownButton<int>(
-                    value: selectedYear,
-                    dropdownColor: const Color(0xFF133E87),
-                    style: const TextStyle(color: Colors.white),
-                    underline: Container(),
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                    items: List.generate(
-                      endYear - startYear + 1,
-                      (index) {
-                        int year = endYear - index;
-                        return DropdownMenuItem(
-                          value: year,
-                          child: Text(
-                            '$year',
-                            style: const TextStyle(color: Colors.white),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF133E87),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
                           ),
-                        );
-                      },
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                color: Colors.white,
+                                size: isSmallScreen ? 18 : 20,
+                              ),
+                              SizedBox(width: isSmallScreen ? 8 : 12),
+                              Text(
+                                'Dari',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: isSmallScreen ? 14 : 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            DateFormat('dd/MM/yyyy').format(startDate),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isSmallScreen ? 14 : 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        selectedYear = value!;
-                      });
-                      _loadData();
-                    },
                   ),
-                ],
-              ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _selectDateRange(context, false),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        vertical: isSmallScreen ? 14 : 16,
+                        horizontal: isSmallScreen ? 12 : 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF133E87),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                color: Colors.white,
+                                size: isSmallScreen ? 18 : 20,
+                              ),
+                              SizedBox(width: isSmallScreen ? 8 : 12),
+                              Text(
+                                'Hingga',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: isSmallScreen ? 14 : 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            DateFormat('dd/MM/yyyy').format(endDate),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isSmallScreen ? 14 : 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             SizedBox(height: isSmallScreen ? 18 : 24),
             Expanded(
