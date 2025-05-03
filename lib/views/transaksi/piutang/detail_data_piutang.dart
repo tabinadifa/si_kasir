@@ -23,7 +23,6 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
     decimalDigits: 0,
   );
   
-  // Controller untuk initialPayment
   final TextEditingController _initialPaymentController = TextEditingController();
   
   Map<String, dynamic>? _transactionData;
@@ -57,7 +56,6 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
           _initialPayment = (_transactionData!['initialPayment'] ?? 0).toDouble();
           _totalAmount = (_transactionData!['totalAmount'] ?? 0).toDouble();
           
-          // Set nilai awal dengan format Rupiah
           _initialPaymentController.text = currencyFormatter.format(_initialPayment).replaceAll('Rp', '').trim();
           
           _isLoading = false;
@@ -78,7 +76,6 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
     }
   }
 
-  // Fungsi untuk memeriksa apakah initialPayment sama dengan totalAmount
   void _checkPaymentStatus() {
     if (_initialPayment >= _totalAmount) {
       setState(() {
@@ -91,19 +88,14 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
     }
   }
 
-  // Fungsi untuk mengubah string format Rupiah menjadi double
   double _parseRupiahToDouble(String rupiahString) {
-    // Hapus semua karakter non-digit
     String digitsOnly = rupiahString.replaceAll(RegExp(r'[^\d]'), '');
-    
-    // Konversi ke double
     if (digitsOnly.isEmpty) {
       return 0;
     }
     return double.parse(digitsOnly);
   }
 
-  // Fungsi untuk memformat angka ke dalam format Rupiah
   String _formatToRupiah(String text) {
     if (text.isEmpty) return '';
     
@@ -329,7 +321,6 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             SizedBox(height: 16.0),
-            // Tambahkan input untuk initialPayment dengan format Rupiah
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -356,16 +347,13 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                       FilteringTextInputFormatter.digitsOnly,
                     ],
                     onChanged: (value) {
-                      // Format input sebagai rupiah
                       String formattedValue = _formatToRupiah(value);
                       
-                      // Perbarui controller tanpa rekursi
                       _initialPaymentController.value = TextEditingValue(
                         text: formattedValue,
                         selection: TextSelection.collapsed(offset: formattedValue.length),
                       );
                       
-                      // Update nilai initialPayment
                       setState(() {
                         _initialPayment = _parseRupiahToDouble(formattedValue);
                         _checkPaymentStatus();
@@ -401,41 +389,31 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
                 Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: _statusPembayaran == 'Lunas' 
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.white,
+                    border: Border.all(
+                      color: _statusPembayaran == 'Lunas'
+                          ? Colors.green
+                          : Colors.red,
+                    ),
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _statusPembayaran,
-                      items: statusOptions.map((String status) {
-                        return DropdownMenuItem<String>(
-                          value: status,
-                          child: Text(
-                            status,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: status == 'Lunas' ? Colors.green : Colors.red,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            _statusPembayaran = newValue;
-                          });
-                        }
-                      },
+                  child: Text(
+                    _statusPembayaran,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _statusPembayaran == 'Lunas' 
+                          ? Colors.green 
+                          : Colors.red,
                     ),
                   ),
                 ),
               ],
             ),
             SizedBox(height: 12.0),
-            // Menampilkan sisa pembayaran
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -444,11 +422,15 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
                 Text(
-                  currencyFormatter.format(_totalAmount - _initialPayment > 0 ? _totalAmount - _initialPayment : 0),
+                  currencyFormatter.format(_totalAmount - _initialPayment > 0 
+                      ? _totalAmount - _initialPayment 
+                      : 0),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: _totalAmount - _initialPayment > 0 ? Colors.red : Colors.green,
+                    color: _totalAmount - _initialPayment > 0 
+                        ? Colors.red 
+                        : Colors.green,
                   ),
                 ),
               ],
@@ -467,14 +449,14 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
         ElevatedButton(
           onPressed: () async {
             try {
-              // Simpan nilai asli (angka) ke Firestore
               await _firestore
                   .collection('transaksi')
                   .doc(widget.transactionId)
                   .update({
                 'status': _statusPembayaran,
-                'initialPayment': _initialPayment, // Simpan sebagai angka biasa
+                'initialPayment': _initialPayment,
               });
+              
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Data berhasil diperbarui')),
               );
