@@ -125,6 +125,8 @@ class _DataPiutangScreenState extends State<DataPiutangScreen> {
       return {
         'id': doc.id,
         'customerName': data['customerName'] ?? 'Tidak Diketahui',
+        'initialPayment': data['initialPayment'] ?? 0,
+        'remainingDebt': data['remainingDebt'] ?? 0,
         'totalAmount': data['totalAmount'] ?? 0,
         'timestamp': _formatTimestamp(data['timestamp'] as Timestamp),
         'status': data['status'] ?? 'Belum Lunas',
