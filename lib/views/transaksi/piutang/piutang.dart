@@ -1,3 +1,9 @@
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
+import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,10 +16,12 @@ class DataPiutangScreen extends StatefulWidget {
 }
 
 class _DataPiutangScreenState extends State<DataPiutangScreen> {
-  String selectedStatus = "Semua"; // Default filter adalah "Semua"
+  String selectedStatus = "Semua"; 
   late String selectedMonth;
   late int selectedYear;
   final int currentYear = DateTime.now().year;
+  bool isExporting = false;
+  List<Map<String, dynamic>> piutangData = [];
   final List<String> months = [
     'Jan',
     'Feb',
@@ -104,6 +112,392 @@ class _DataPiutangScreenState extends State<DataPiutangScreen> {
     });
   }
 
+  Future<void> _exportToExcel() async {
+  try {
+    setState(() {
+      isExporting = true;
+    });
+
+    // Get the current filtered data
+    final querySnapshot = await _getPiutangStream().first;
+    piutangData = querySnapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return {
+        'id': doc.id,
+        'customerName': data['customerName'] ?? 'Tidak Diketahui',
+        'totalAmount': data['totalAmount'] ?? 0,
+        'timestamp': _formatTimestamp(data['timestamp'] as Timestamp),
+        'status': data['status'] ?? 'Belum Lunas',
+      };
+    }).toList();
+
+    final excel = Excel.createExcel();
+    
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    // Sheet Piutang
+    final sheetPiutang = excel['Piutang'];
+    
+    // Style for headers
+    CellStyle headerStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.fromHexString('FF133E87'),
+      fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),   
+      horizontalAlign: HorizontalAlign.Center,
+    );
+
+    // Add title with date range
+    sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
+      ..value = TextCellValue('LAPORAN PIUTANG ${selectedMonth} ${selectedYear}')
+      ..cellStyle = headerStyle;
+    
+    sheetPiutang.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0), 
+                       CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 0));
+
+    // Add headers
+    final headers = ['No', 'ID Transaksi', 'Nama Pelanggan', 'Tanggal', 'Jumlah Dibayar', 'Sisa Hutang', 'Total', 'Status'];
+    for (int i = 0; i < headers.length; i++) {
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 2))
+        ..value = TextCellValue(headers[i])
+        ..cellStyle = headerStyle;
+    }
+    
+    // Add data rows
+    for (int i = 0; i < piutangData.length; i++) {
+      final data = piutangData[i];
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i + 3)).value = IntCellValue(i + 1);
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i + 3)).value = TextCellValue(data['id']?.toString() ?? '-');
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i + 3)).value = TextCellValue(data['customerName']?.toString() ?? '-');
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i + 3)).value = TextCellValue(data['timestamp']?.toString() ?? '-');
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i + 3)).value = DoubleCellValue(_toDouble(data['initialPayment']));
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: i + 3)).value = DoubleCellValue(_toDouble(data['remainingDebt']));
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i + 3)).value = DoubleCellValue(_toDouble(data['totalAmount']));
+      sheetPiutang.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i + 3)).value = TextCellValue(data['status']?.toString() ?? '-');
+    }
+    
+    // Set column widths
+    sheetPiutang.setColumnWidth(0, 5);  
+    sheetPiutang.setColumnWidth(1, 20); 
+    sheetPiutang.setColumnWidth(2, 30); 
+    sheetPiutang.setColumnWidth(3, 15);
+    sheetPiutang.setColumnWidth(6, 15); 
+    sheetPiutang.setColumnWidth(7, 15); 
+    sheetPiutang.setColumnWidth(4, 15); 
+    sheetPiutang.setColumnWidth(5, 15); 
+
+    // Add summary sheet
+    final sheetSummary = excel['Ringkasan'];
+    
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
+      ..value = TextCellValue('RINGKASAN PIUTANG ${selectedMonth} ${selectedYear}')
+      ..cellStyle = headerStyle;
+    
+    sheetSummary.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0), 
+                       CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0));
+
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2))
+      ..value = TextCellValue('Kategori')
+      ..cellStyle = headerStyle;
+    
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2))
+      ..value = TextCellValue('Jumlah')
+      ..cellStyle = headerStyle;
+    
+    // Calculate totals
+    double totalPiutang = piutangData.fold(0, (sum, item) => sum + _toDouble(item['totalAmount']));
+    double totalLunas = piutangData
+        .where((item) => item['status'] == 'Lunas')
+        .fold(0, (sum, item) => sum + _toDouble(item['totalAmount']));
+    double totalBelumLunas = piutangData
+        .where((item) => item['status'] == 'Belum Lunas')
+        .fold(0, (sum, item) => sum + _toDouble(item['totalAmount']));
+
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3)).value = TextCellValue('Total Piutang');
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3)).value = DoubleCellValue(totalPiutang);
+    
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 4)).value = TextCellValue('Piutang Lunas');
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 4)).value = DoubleCellValue(totalLunas);
+    
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 5)).value = TextCellValue('Piutang Belum Lunas');
+    sheetSummary.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 5)).value = DoubleCellValue(totalBelumLunas);
+    
+    sheetSummary.setColumnWidth(0, 20);
+    sheetSummary.setColumnWidth(1, 15);
+
+    await _saveToLocalStorage(excel);
+    
+    setState(() {
+      isExporting = false;
+    });
+  } catch (e) {
+    print("Error exporting to Excel: $e");
+    _showErrorDialog("Terjadi kesalahan saat mengekspor data ke Excel: ${e.toString()}");
+    setState(() {
+      isExporting = false;
+    });
+  }
+}
+
+double _toDouble(dynamic value) {
+  if (value == null) return 0.0;
+  if (value is int) return value.toDouble();
+  if (value is double) return value;
+  return double.tryParse(value.toString()) ?? 0.0;
+}
+
+Future<void> _requestPermission() async {
+  if (await Permission.manageExternalStorage.isGranted) {
+    return;
+  }
+  
+  var status = await Permission.manageExternalStorage.request();
+  if (!status.isGranted) {
+    throw Exception('Permission denied');
+  }
+}
+
+Future<void> _saveToLocalStorage(Excel excel) async {
+  try {
+    await _requestPermission();
+    Directory? directory = await getExternalStorageDirectory();
+    String newPath = '';
+    
+    List<String> paths = directory!.path.split('/');
+    for (int x = 1; x < paths.length; x++) {
+      String folder = paths[x];
+      if (folder != 'Android') {
+        newPath += '/$folder';
+      } else {
+        break;
+      }
+    }
+    newPath = '$newPath/Download';
+    directory = Directory(newPath);
+
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+
+    final fileName = 'Laporan_Piutang_${selectedMonth}_${selectedYear}.xlsx';
+    final filePath = '${directory.path}/$fileName';
+    
+    final excelBytes = excel.encode();
+    if (excelBytes == null) {
+      throw Exception('Gagal mengencode Excel');
+    }
+
+    final file = File(filePath);
+    await file.writeAsBytes(excelBytes, flush: true);
+    
+    _showSuccessDialog('Laporan piutang berhasil disimpan', filePath);
+    
+  } on MissingPluginException catch (e) {
+    _showErrorDialog('Plugin tidak tersedia: ${e.message}\nPastikan aplikasi sudah di-rebuild');
+  } catch (e) {
+    _showErrorDialog('Gagal menyimpan file: ${e.toString()}');
+  }
+}
+
+void _showErrorDialog(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Terjadi Kesalahan', style: TextStyle(color: Colors.red)),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showSuccessDialog(String message, String filePath) {
+  final fileName = filePath.split('/').last;
+
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 10.0,
+              offset: Offset(0.0, 10.0),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Color(0xFF133E87).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle_outline,
+                color: Color(0xFF133E87),
+                size: 50,
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Ekspor Berhasil!',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF133E87),
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              fileName,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Color(0xFF133E87)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text(
+                      'Tutup',
+                      style: TextStyle(
+                        color: Color(0xFF133E87),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      try {
+                        final result = await OpenFile.open(filePath);
+                        if (result.type != ResultType.done) {
+                          _showErrorDialog(
+                              'Gagal membuka file: ${result.message}');
+                        }
+                      } catch (e) {
+                        _showErrorDialog(
+                            'Gagal membuka file: ${e.toString()}');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF133E87),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.open_in_new,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Buka File',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _buildExportButton() {
+  return GestureDetector(
+    onTap: isExporting ? null : _exportToExcel,
+    child: Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Center(
+          child: isExporting
+              ? SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF133E87)),
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(width: 4),
+                    Text(
+                      'Cetak Excel',
+                      style: TextStyle(
+                        color: Color(0xFF133E87),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    ),
+  );
+}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,6 +514,12 @@ class _DataPiutangScreenState extends State<DataPiutangScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: _buildExportButton(),
+          ),
+        ],
         backgroundColor: Color(0xFF133E87),
         elevation: 0,
       ),

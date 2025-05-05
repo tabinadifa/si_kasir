@@ -29,6 +29,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
   bool _isLoading = true;
   double _initialPayment = 0;
   double _totalAmount = 0;
+  double _remainingDebt = 0;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
           _statusPembayaran = _transactionData!['status'] ?? 'Belum Lunas';
           _initialPayment = (_transactionData!['initialPayment'] ?? 0).toDouble();
           _totalAmount = (_transactionData!['totalAmount'] ?? 0).toDouble();
+          _remainingDebt = (_transactionData!['remainingDebt'] ?? _totalAmount - _initialPayment).toDouble();
           
           _initialPaymentController.text = currencyFormatter.format(_initialPayment).replaceAll('Rp', '').trim();
           
@@ -76,14 +78,25 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
     }
   }
 
+  void _updateRemainingDebt() {
+    setState(() {
+      _remainingDebt = _totalAmount - _initialPayment;
+      if (_remainingDebt < 0) {
+        _remainingDebt = 0;
+      }
+    });
+  }
+
   void _checkPaymentStatus() {
     if (_initialPayment >= _totalAmount) {
       setState(() {
         _statusPembayaran = 'Lunas';
+        _remainingDebt = 0;
       });
     } else {
       setState(() {
         _statusPembayaran = 'Belum Lunas';
+        _updateRemainingDebt();
       });
     }
   }
@@ -422,13 +435,11 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
                 Text(
-                  currencyFormatter.format(_totalAmount - _initialPayment > 0 
-                      ? _totalAmount - _initialPayment 
-                      : 0),
+                  currencyFormatter.format(_remainingDebt),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: _totalAmount - _initialPayment > 0 
+                    color: _remainingDebt > 0 
                         ? Colors.red 
                         : Colors.green,
                   ),
@@ -455,6 +466,7 @@ class _DetailPiutangScreenState extends State<DetailPiutangScreen> {
                   .update({
                 'status': _statusPembayaran,
                 'initialPayment': _initialPayment,
+                'remainingDebt': _remainingDebt,
               });
               
               ScaffoldMessenger.of(context).showSnackBar(
