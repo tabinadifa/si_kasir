@@ -42,104 +42,121 @@ class _ProdukTerjualScreenState extends State<ProdukTerjualScreen> {
     }
   }
 
-  Future<void> _fetchProducts() async {
-    if (userEmail == null) return;
-
-    try {
-      final produkQuery = await _firestore
-          .collection('produk')
-          .where('email', isEqualTo: userEmail)
-          .get();
-
-      List<Map<String, dynamic>> tempProducts = [];
-      Map<String, int> productSales = {};
-
-      final transaksiQuery = await _firestore
-          .collection('transaksi')
-          .where('email', isEqualTo: userEmail)
-          .get();
-
-      for (var transaksi in transaksiQuery.docs) {
-        final transaksiData = transaksi.data();
-        final timestamp = transaksiData['timestamp'] as Timestamp?;
-        
-        if (timestamp != null && timestamp.toDate().year == selectedYear) {
-          final products = transaksiData['products'] as List<dynamic>?;
-          
-          if (products != null) {
-            for (var product in products) {
-              final productId = product['id']?.toString();
-              final quantity = (product['quantity'] ?? 0) as int;
-              
-              if (productId != null) {
-                productSales.update(
-                  productId,
-                  (value) => value + quantity,
-                  ifAbsent: () => quantity
-                );
-              }
-            }
-          }
-        }
-      }
-
-      for (var doc in produkQuery.docs) {
-        final produkData = doc.data();
-        final produkId = doc.id;
-        final totalTerjual = productSales[produkId] ?? 0;
-
-        tempProducts.add({
-          'id': produkId,
-          'nama': produkData['namaProduk'] ?? 'No Name',
-          'stok': (produkData['stok'] ?? 0).toInt(),
-          'harga': (produkData['hargaJual'] ?? 0).toInt(),
-          'status': produkData['status'] ?? 'Aktif',
-          'terjual': totalTerjual,
-          'kategori': produkData['kategori'] ?? 'Umum',
-          'namaProduk': produkData['namaProduk'] ?? 'No Name',
-        });
-      }
-
-      // Kelompokkan produk berdasarkan kategori
-      Map<String, List<Map<String, dynamic>>> productsByCategory = {};
-      for (var product in tempProducts) {
-        final category = product['kategori'] ?? 'Umum';
-        if (!productsByCategory.containsKey(category)) {
-          productsByCategory[category] = [];
-        }
-        productsByCategory[category]!.add(product);
-      }
-
-      // Tentukan best seller per kategori
-      for (var category in productsByCategory.keys) {
-        final categoryProducts = productsByCategory[category]!;
-        if (categoryProducts.isNotEmpty) {
-          // Urutkan berdasarkan penjualan tertinggi
-          categoryProducts.sort((a, b) => (b['terjual'] ?? 0).compareTo(a['terjual'] ?? 0));
-          final maxSold = categoryProducts.first['terjual'] ?? 0;
-          
-          // Tandai sebagai best seller jika penjualan > 0
-          if (maxSold > 0) {
-            for (var product in categoryProducts) {
-              product['isBestSellerInCategory'] = product['terjual'] == maxSold;
-            }
-          }
-        }
-      }
-
-      // Gabungkan kembali semua produk
-      tempProducts = productsByCategory.values.expand((x) => x).toList();
-
-      setState(() {
-        products = tempProducts;
-        isLoading = false;
-      });
-
-    } catch (e) {
-      print('Error fetching products: $e');
-      setState(() => isLoading = false);
-    }
+  Future<void> _updateProductStatus(String productId, String status) async {
+  try {
+    await _firestore.collection('produk').doc(productId).update({
+      'status': status,
+    });
+  } catch (e) {
+    print('Error updating product status: $e');
   }
+}
+
+Future<void> _fetchProducts() async {
+  if (userEmail == null) return;
+
+  try {
+    final produkQuery = await _firestore
+        .collection('produk')
+        .where('email', isEqualTo: userEmail)
+        .get();
+
+    List<Map<String, dynamic>> tempProducts = [];
+    Map<String, int> productSales = {};
+
+    final transaksiQuery = await _firestore
+        .collection('transaksi')
+        .where('email', isEqualTo: userEmail)
+        .get();
+
+    for (var transaksi in transaksiQuery.docs) {
+      final transaksiData = transaksi.data();
+      final timestamp = transaksiData['timestamp'] as Timestamp?;
+      
+      if (timestamp != null && timestamp.toDate().year == selectedYear) {
+        final products = transaksiData['products'] as List<dynamic>?;
+        
+        if (products != null) {
+          for (var product in products) {
+            final productId = product['id']?.toString();
+            final quantity = (product['quantity'] ?? 0) as int;
+            
+            if (productId != null) {
+              productSales.update(
+                productId,
+                (value) => value + quantity,
+                ifAbsent: () => quantity
+              );
+            }
+          }
+        }
+      }
+    }
+
+    for (var doc in produkQuery.docs) {
+      final produkData = doc.data();
+      final produkId = doc.id;
+      final totalTerjual = productSales[produkId] ?? 0;
+      final stok = (produkData['stok'] ?? 0).toInt();
+      
+      // Jika stok 0, update status menjadi Nonaktif
+      if (stok == 0 && produkData['status'] == 'Aktif') {
+        await _updateProductStatus(produkId, 'Nonaktif');
+        produkData['status'] = 'Nonaktif';
+      }
+
+      tempProducts.add({
+        'id': produkId,
+        'nama': produkData['namaProduk'] ?? 'No Name',
+        'stok': stok,
+        'harga': (produkData['hargaJual'] ?? 0).toInt(),
+        'status': produkData['status'] ?? 'Aktif',
+        'terjual': totalTerjual,
+        'kategori': produkData['kategori'] ?? 'Umum',
+        'namaProduk': produkData['namaProduk'] ?? 'No Name',
+      });
+    }
+
+    // Kelompokkan produk berdasarkan kategori
+    Map<String, List<Map<String, dynamic>>> productsByCategory = {};
+    for (var product in tempProducts) {
+      final category = product['kategori'] ?? 'Umum';
+      if (!productsByCategory.containsKey(category)) {
+        productsByCategory[category] = [];
+      }
+      productsByCategory[category]!.add(product);
+    }
+
+    // Tentukan best seller per kategori
+    for (var category in productsByCategory.keys) {
+      final categoryProducts = productsByCategory[category]!;
+      if (categoryProducts.isNotEmpty) {
+        // Urutkan berdasarkan penjualan tertinggi
+        categoryProducts.sort((a, b) => (b['terjual'] ?? 0).compareTo(a['terjual'] ?? 0));
+        final maxSold = categoryProducts.first['terjual'] ?? 0;
+        
+        // Tandai sebagai best seller jika penjualan > 0
+        if (maxSold > 0) {
+          for (var product in categoryProducts) {
+            product['isBestSellerInCategory'] = product['terjual'] == maxSold;
+          }
+        }
+      }
+    }
+
+    // Gabungkan kembali semua produk
+    tempProducts = productsByCategory.values.expand((x) => x).toList();
+
+    setState(() {
+      products = tempProducts;
+      isLoading = false;
+    });
+
+  } catch (e) {
+    print('Error fetching products: $e');
+    setState(() => isLoading = false);
+  }
+}
 
   // Function to export data to Excel
   Future<void> _exportToExcel() async {
@@ -814,6 +831,7 @@ void _showErrorDialog(String message) {
 
   Widget _buildProductCard(BuildContext context, Map<String, dynamic> product) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final actualStatus = (product['stok'] ?? 0) == 0 ? 'Nonaktif' : product['status'];
     final isSmallScreen = screenWidth < 360;
 
     return Container(
@@ -853,21 +871,21 @@ void _showErrorDialog(String message) {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: (product['status'] == 'Aktif'
+                  color: (actualStatus == 'Aktif'
                           ? Color(0xFF133E87)
                           : Colors.red)
                       .withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  product['status'],
-                  style: TextStyle(
-                    color: product['status'] == 'Aktif'
-                        ? Color(0xFF133E87)
-                        : Colors.red,
-                    fontSize: isSmallScreen ? 10 : 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                 child: Text(
+                actualStatus,
+                style: TextStyle(
+                  color: actualStatus == 'Aktif'
+                      ? Color(0xFF133E87)
+                      : Colors.red,
+                  fontSize: isSmallScreen ? 10 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
                 ),
               ),
             ],
